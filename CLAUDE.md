@@ -26,6 +26,7 @@ streamlit run dashboard.py     # ダッシュボード起動
 ## 対象URL
 - 一覧: `https://www.taniguchitosen.com/rockshore`
 - ページネーション: `/rockshore/page/2` 〜 `/rockshore/page/60`
+- アプリ公開用URL: `https://fishingreport-kh2suneznc8cnv2unyspma.streamlit.app/`
 
 ## データモデル（1レコード）
 | フィールド | 内容 |
@@ -78,6 +79,7 @@ streamlit run dashboard.py     # ダッシュボード起動
 `parser.py` の `SPECIES_MAP` に定義。マッピング外は `species_raw` をそのまま `species` に使用。
 - `イサギ` → `イサキ`
 - `串本` → `グレ`
+- `グレ`が含まれていればすべて'グレ'とみなす
 
 ### レート制限
 リクエスト間隔：1〜3秒ランダムウェイト（`time.sleep(random.uniform(1, 3))`）
