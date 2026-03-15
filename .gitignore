@@ -1,0 +1,29 @@
+# APIキー・秘密情報
+.env
+
+# 学習済みモデル（大容量バイナリ）
+ml/models/
+
+# 出力データ
+output/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# 分析作業ファイル（一時）
+check*.txt
+analysis_out.txt
+multi_species.txt
+parse_test.txt
+result_check.txt
+prompt*.txt
+
+# Claude Code 内部ファイル
+.claude/
+
+# state（ローカル取得状態）
+state.json

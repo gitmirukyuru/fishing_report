@@ -1,0 +1,8 @@
+scrapling[all]>=0.4
+pandas>=2.0
+streamlit>=1.32
+plotly>=5.20
+requests>=2.31
+lightgbm>=4.0
+scikit-learn>=1.4
+pyarrow>=14.0
