@@ -2,11 +2,19 @@
 storage.py — CSV書き込み・重複排除
 """
 
+import hashlib
 import logging
 from datetime import date
 from pathlib import Path
 
 import pandas as pd
+
+
+def _hash_angler(name: str | None) -> str | None:
+    """釣り人名をSHA-256ハッシュ（先頭8文字）に変換する。"""
+    if not name or (isinstance(name, float)):
+        return None
+    return hashlib.sha256(str(name).encode('utf-8')).hexdigest()[:8]
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +55,9 @@ def save(entries: list[dict]) -> Path:
         if col not in new_df.columns:
             new_df[col] = None
     new_df = new_df[COLUMNS]
+
+    # 釣り人名を匿名化（SHA-256先頭8文字）
+    new_df['angler'] = new_df['angler'].apply(_hash_angler)
 
     if csv_path.exists():
         existing_df = pd.read_csv(csv_path, encoding='utf-8-sig', dtype=str)

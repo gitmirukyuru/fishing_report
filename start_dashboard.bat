@@ -5,4 +5,4 @@ for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":8501 " ^| findstr LISTENING
 )
 timeout /t 1 /nobreak >nul
 echo Starting dashboard on http://localhost:8501
-streamlit run dashboard.py --server.port 8501 --server.headless true
+streamlit run dashboard.py --server.address 0.0.0.0 --server.port 8501 --server.headless true

@@ -3,7 +3,6 @@ dashboard.py — 谷口渡船 釣果ダッシュボード
 起動: streamlit run dashboard.py
 """
 
-import subprocess
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -414,7 +413,7 @@ st.sidebar.markdown("""
 df_all = load_data()
 
 if df_all.empty:
-    st.warning('output/ にデータがありません。先に `python scraper.py` を実行してください。')
+    st.warning('釣果データがありません。ローカルで `python scraper.py` を実行してください。')
     st.stop()
 
 # 期間フィルタ
@@ -432,34 +431,6 @@ else:
 all_species = sorted(df_all['species'].dropna().unique())
 selected_species = st.sidebar.multiselect('魚種', all_species, default=all_species)
 
-# データ取得ボタン
-st.sidebar.markdown("""
-<div style="border-top: 1px solid rgba(255,255,255,0.15); margin: 16px 0 14px 0;"></div>
-<div style="color:rgba(255,255,255,0.5); font-size:0.72rem; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:10px;">
-  データ取得
-</div>
-""", unsafe_allow_html=True)
-
-def _run_scraper(args: list[str], label: str) -> None:
-    with st.status(f'{label}...', expanded=True) as s:
-        result = subprocess.run(
-            ['python', 'scraper.py'] + args,
-            capture_output=True, text=True, encoding='utf-8', errors='replace'
-        )
-        st.write(result.stdout or '（出力なし）')
-        if result.returncode != 0:
-            st.error(result.stderr)
-            s.update(label='エラーが発生しました', state='error')
-        else:
-            s.update(label='完了', state='complete')
-    st.cache_data.clear()
-    st.rerun()
-
-if st.sidebar.button('全データを取得', help='全60ページを取得します（数分かかります）'):
-    _run_scraper(['--full'], '全データ取得中')
-
-if st.sidebar.button('未取得の最新データを取得', help='前回取得日以降のデータのみ取得します'):
-    _run_scraper([], '最新データ取得中')
 
 # フィルタ適用
 df = df_all[
@@ -812,7 +783,7 @@ with tab0:
                 unsafe_allow_html=True,
             )
     else:
-        st.info('AIモデルが未学習です。サイドバーの「全データを取得」後に `python -m ml.train` を実行してください。')
+        st.info('AIモデルが未学習です。ローカルで `python ml/train.py` を実行してください。')
         _sel_date = _today
 
     _sel_pred = next((p for p in _h_ai if p['date'] == _sel_date), None) if _h_ai else None
@@ -1113,7 +1084,7 @@ with tab1:
     if not models_ready:
         st.info(
             'AI予測モデルが未学習です。'
-            'サイドバーの「全データを取得」後に `python ml/train.py` を実行してください。'
+            'ローカルで `python ml/train.py` を実行してください。'
         )
     elif not ai_predictions:
         st.warning('AI予測データを取得できませんでした。')

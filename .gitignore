@@ -1,11 +1,12 @@
 # APIキー・秘密情報
 .env
 
-# 学習済みモデル（大容量バイナリ）
+# 学習済みモデル・特徴量（ローカル生成物・個人名含む）
 ml/models/
+ml/features.parquet
 
-# 出力データ
-output/
+# 出力データ（匿名化済みCSVはコミット対象、生データは除外）
+output/*.json
 
 # Python
 __pycache__/
