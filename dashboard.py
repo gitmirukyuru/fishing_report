@@ -693,7 +693,7 @@ with tab0:
         import json as _json
         _gen_at = _json.loads(_PREDICTIONS_PATH.read_text(encoding='utf-8')).get('generated_at', '')
         if _gen_at:
-            st.caption(f'AI予測更新日時: {_gen_at}　※新しい予測は `python ml/train.py` → git push で反映')
+            st.caption(f'AI予測更新日時: {_gen_at}')
     _h_br   = _load_species_base_rates()
     _h_wx   = _load_weather('串本')
     _h_tide = _load_tide('串本')
@@ -803,7 +803,7 @@ with tab0:
                 unsafe_allow_html=True,
             )
     else:
-        st.info('AIモデルが未学習です。ローカルで `python ml/train.py` を実行してください。')
+        st.info('AI予測データがありません。')
         _sel_date = _today
 
     _sel_pred = next((p for p in _h_ai if p['date'] == _sel_date), None) if _h_ai else None
@@ -1099,14 +1099,8 @@ with tab1:
     st.markdown('##### 🤖 AI 釣行予測（向こう7日間）')
 
     ai_predictions = _load_ai_predictions(days=7)
-    models_ready = _ML_AVAILABLE and ml_predict.models_exist()
 
-    if not models_ready:
-        st.info(
-            'AI予測モデルが未学習です。'
-            'ローカルで `python ml/train.py` を実行してください。'
-        )
-    elif not ai_predictions:
+    if not ai_predictions:
         st.warning('AI予測データを取得できませんでした。')
     else:
         # 7日間テーブル
@@ -1667,7 +1661,7 @@ with tab2:
             pdp_df = _load_water_temp_pdp()
 
         if pdp_df is None:
-            st.info('AIモデルが未学習です。先に `python ml/train.py` を実行してください。')
+            st.info('AI予測データがありません。')
         else:
             pdp_col1, pdp_col2 = st.columns(2)
 
