@@ -732,29 +732,22 @@ with tab0:
             _is_today = (_d == _today)
             _is_sel   = (st.session_state['home_sel_date'] == _d)
 
-            if _gp >= 0.6:
-                _verdict_sym, _v_color, _v_bg = '✅ GO',    '#1a7a4a', '#d4edda'
-            elif _gp >= 0.4:
-                _verdict_sym, _v_color, _v_bg = '⚠️ CHECK', '#7a5f00', '#fff3cd'
-            else:
-                _verdict_sym, _v_color, _v_bg = '✖ STOP',  '#7a1c24', '#f8d7da'
-
-            # 休船リスク（tenki.jp 0〜6時風速）
+            # 休船リスク（tenki.jp 0〜6時風速）→ 判定基準
             _mw_row = _mw_map.get(_d)
             if _mw_row is not None:
-                _mw_spd   = _mw_row['wind_max_ms']
-                _mw_label = _mw_row['risk_label']
-                _mw_prob  = _mw_row['risk_prob']
+                _mw_spd  = _mw_row['wind_max_ms']
+                _mw_prob = _mw_row['risk_prob']
                 if _mw_prob >= 0.90:
-                    _mw_str   = f'⚠ 休船確率大({int(_mw_spd)}m/s)'
-                    _mw_color = '#7a1c24'
+                    _verdict_sym, _v_color, _v_bg = '✖ STOP',   '#7a1c24', '#f8d7da'
+                    _mw_str,  _mw_color = f'⚠ 休船確率大({int(_mw_spd)}m/s)', '#7a1c24'
                 elif _mw_prob >= 0.75:
-                    _mw_str   = f'△ 可能性あり({int(_mw_spd)}m/s)'
-                    _mw_color = '#7a5f00'
+                    _verdict_sym, _v_color, _v_bg = '⚠️ CHECK', '#7a5f00', '#fff3cd'
+                    _mw_str,  _mw_color = f'△ 可能性あり({int(_mw_spd)}m/s)', '#7a5f00'
                 else:
-                    _mw_str   = f'○ 出船可({int(_mw_spd)}m/s)'
-                    _mw_color = '#1a7a4a'
+                    _verdict_sym, _v_color, _v_bg = '✅ GO',    '#1a7a4a', '#d4edda'
+                    _mw_str,  _mw_color = f'○ 出船可({int(_mw_spd)}m/s)', '#1a7a4a'
             else:
+                _verdict_sym, _v_color, _v_bg = '✅ GO',    '#1a7a4a', '#d4edda'
                 _mw_str, _mw_color = '– (風速データなし)', '#aaa'
 
             _date_str = f"{_d.month}/{_d.day}({_wd})" + (' ★今日' if _is_today else '')
@@ -789,13 +782,14 @@ with tab0:
         # 選択中の日付を見出しで表示
         _sd_p = next((p for p in _h_ai if p['date'] == _sel_date), None)
         if _sd_p:
-            _sd_gp = _sd_p.get('go_proba', 0)
-            if _sd_gp >= 0.6:
-                _sd_sym, _sd_col = '✅ GO',    '#1a7a4a'
-            elif _sd_gp >= 0.4:
+            _sd_mw = _mw_map.get(_sel_date)
+            _sd_rp = _sd_mw['risk_prob'] if _sd_mw is not None else 0.0
+            if _sd_rp >= 0.90:
+                _sd_sym, _sd_col = '✖ STOP',   '#7a1c24'
+            elif _sd_rp >= 0.75:
                 _sd_sym, _sd_col = '⚠️ CHECK', '#7a5f00'
             else:
-                _sd_sym, _sd_col = '✖ STOP',  '#7a1c24'
+                _sd_sym, _sd_col = '✅ GO',    '#1a7a4a'
             st.markdown(
                 f'<div style="font-size:1.05rem; font-weight:700; color:{_sd_col}; margin-bottom:8px;">'
                 f'▶ {_sel_date.month}/{_sel_date.day}({_WDAYS[_sel_date.weekday()]}) — {_sd_sym}'
@@ -813,13 +807,15 @@ with tab0:
     st.markdown('---')
 
     # ── GO / CHECK / STOP バナー ────────────────────────────────
-    if _go_proba is not None:
-        if _go_proba >= 0.6:
-            _verdict, _vc, _vbg, _vmsg = '✅ GO',    '#1a7a4a', '#d4edda', '釣行を強くおすすめします！'
-        elif _go_proba >= 0.4:
-            _verdict, _vc, _vbg, _vmsg = '⚠️ CHECK', '#7a5f00', '#fff3cd', '条件を確認して判断してください'
+    _sel_mw  = _mw_map.get(_sel_date)
+    _sel_rp  = _sel_mw['risk_prob'] if _sel_mw is not None else 0.0
+    if _go_proba is not None or _sel_mw is not None:
+        if _sel_rp >= 0.90:
+            _verdict, _vc, _vbg, _vmsg = '✖ STOP',   '#7a1c24', '#f8d7da', '出船困難な可能性があります'
+        elif _sel_rp >= 0.75:
+            _verdict, _vc, _vbg, _vmsg = '⚠️ CHECK', '#7a5f00', '#fff3cd', '出船できない可能性があります。確認してください'
         else:
-            _verdict, _vc, _vbg, _vmsg = '✖ STOP',  '#7a1c24', '#f8d7da', '見送りをおすすめします'
+            _verdict, _vc, _vbg, _vmsg = '✅ GO',    '#1a7a4a', '#d4edda', '出船できる見込みです'
 
         _sp_sel = _species_lift_str(_sel_pred.get('species_proba', {}), _h_br, top_n=2)
         st.markdown(f"""
