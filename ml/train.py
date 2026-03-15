@@ -297,6 +297,12 @@ def main(skip_if_no_new: bool = False) -> None:
 
     logger.info('=== 学習完了 ===')
 
+    # 予測結果を ml/predictions.json にエクスポート
+    from ml.predict import export_predictions
+    logger.info('向こう7日間の予測をエクスポート中...')
+    export_predictions(days=7)
+    logger.info('predictions.json 書き出し完了')
+
 
 if __name__ == '__main__':
     main()

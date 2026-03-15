@@ -530,8 +530,21 @@ def _load_tide(location: str) -> pd.DataFrame | None:
 def _load_hourly() -> pd.DataFrame | None:
     return weather_api.get_hourly_forecast(days=14)
 
+_PREDICTIONS_PATH = Path('ml/predictions.json')
+
 @st.cache_data(ttl=1800, show_spinner=False)
 def _load_ai_predictions(days: int = 7) -> list[dict]:
+    """予測をml/predictions.jsonから読み込む。なければライブ推論にフォールバック。"""
+    if _PREDICTIONS_PATH.exists():
+        import json as _json
+        payload = _json.loads(_PREDICTIONS_PATH.read_text(encoding='utf-8'))
+        preds = payload.get('predictions', [])
+        for p in preds:
+            if isinstance(p.get('date'), str):
+                from datetime import date as _date
+                p['date'] = _date.fromisoformat(p['date'])
+        return preds
+    # ローカル環境でモデルがある場合のみフォールバック
     if not _ML_AVAILABLE or not ml_predict.models_exist():
         return []
     return ml_predict.predict_multi_days(days=days)
@@ -674,6 +687,13 @@ with tab0:
 
     # ── データ取得（キャッシュ利用）────────────────────────────
     _h_ai   = _load_ai_predictions(days=7)
+
+    # 予測生成日時を表示
+    if _PREDICTIONS_PATH.exists():
+        import json as _json
+        _gen_at = _json.loads(_PREDICTIONS_PATH.read_text(encoding='utf-8')).get('generated_at', '')
+        if _gen_at:
+            st.caption(f'AI予測更新日時: {_gen_at}　※新しい予測は `python ml/train.py` → git push で反映')
     _h_br   = _load_species_base_rates()
     _h_wx   = _load_weather('串本')
     _h_tide = _load_tide('串本')

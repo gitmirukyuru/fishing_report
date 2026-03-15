@@ -697,6 +697,49 @@ def _fetch_precip_history(target_date: date, result: dict) -> None:
 
 
 # ------------------------------------------------------------------
+# 予測エクスポート
+# ------------------------------------------------------------------
+
+PREDICTIONS_PATH = Path('ml/predictions.json')
+
+
+def export_predictions(days: int = 7) -> Path:
+    """向こう N 日間の予測を ml/predictions.json に書き出す。
+
+    dashboard.py はこのファイルを読み込むことで、
+    モデルや外部APIなしで予測を表示できる。
+
+    Returns:
+        書き込んだファイルのパス
+    """
+    from datetime import datetime
+    preds = predict_multi_days(days=days)
+
+    def _serialize(obj):
+        if isinstance(obj, date):
+            return obj.isoformat()
+        if isinstance(obj, float) and (obj != obj):  # NaN
+            return None
+        return obj
+
+    serializable = []
+    for p in preds:
+        serializable.append({k: _serialize(v) for k, v in p.items()})
+
+    payload = {
+        'generated_at': datetime.now().isoformat(timespec='seconds'),
+        'predictions':  serializable,
+    }
+    PREDICTIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    PREDICTIONS_PATH.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding='utf-8',
+    )
+    logger.info('予測エクスポート完了: %s (%d日分)', PREDICTIONS_PATH, len(preds))
+    return PREDICTIONS_PATH
+
+
+# ------------------------------------------------------------------
 # ユーティリティ
 # ------------------------------------------------------------------
 
