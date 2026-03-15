@@ -964,7 +964,7 @@ with tab0:
 
     _r1, _r2 = st.columns(2)
     with _r1:
-        st.markdown('##### ❌ 見送り理由' if _bad else '##### ✅ 懸念点なし')
+        st.markdown('##### ⚠️ 懸念事項' if _bad else '##### ✅ 懸念事項なし')
         if _bad:
             for _icon, _txt in _bad:
                 st.markdown(f'{_icon} {_txt}')
