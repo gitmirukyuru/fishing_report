@@ -713,7 +713,28 @@ def export_predictions(days: int = 7) -> Path:
         書き込んだファイルのパス
     """
     from datetime import datetime
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).parent.parent))
+    import tenki_scraper as _tenki
+
     preds = predict_multi_days(days=days)
+
+    # tenki.jp から天気・気温を取得してマージ
+    wx_df = _tenki.get_weather_forecast('串本')
+    wx_map: dict = {}
+    if wx_df is not None and not wx_df.empty:
+        for _, row in wx_df.drop_duplicates(subset=['date']).iterrows():
+            d = row['date']
+            wx_map[d] = {
+                'weather':  row.get('weather'),
+                'temp_max': row.get('temp_max'),
+                'temp_min': row.get('temp_min'),
+            }
+    for p in preds:
+        wx = wx_map.get(p['date'], {})
+        for k, v in wx.items():
+            if v is not None and str(v) not in ('', 'nan'):
+                p[k] = v
 
     def _serialize(obj):
         if isinstance(obj, date):

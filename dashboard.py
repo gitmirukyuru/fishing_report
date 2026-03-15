@@ -244,6 +244,33 @@ hr { border-color: #D5E6EF; margin: 1.2rem 0; }
     border-radius: 8px !important;
     min-height: 42px !important;
 }
+
+/* ── モバイル対応 ── */
+@media (max-width: 640px) {
+    .main .block-container {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+        padding-top: 0.75rem !important;
+    }
+    /* ヘッダーを小さく */
+    h1 { font-size: 1.2rem !important; }
+    h2 { font-size: 1.05rem !important; }
+    h3, h5 { font-size: 0.95rem !important; }
+    /* タブラベルを詰める */
+    .stTabs [data-baseweb="tab"] {
+        padding: 7px 10px !important;
+        font-size: 0.78rem !important;
+    }
+    /* Metricカードの余白縮小 */
+    [data-testid="metric-container"] {
+        padding: 10px 12px !important;
+    }
+    /* ボタン余白 */
+    .stButton > button {
+        padding: 8px 12px !important;
+        font-size: 0.82rem !important;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -480,7 +507,8 @@ _kpi_days    = df_all['date'].dt.date.nunique()
 _kpi_spots   = df_all['spot'].nunique()
 _kpi_maxsize = df_all['size_max_cm'].max()
 
-_c1, _c2, _c3, _c4 = st.columns(4)
+_c1, _c2 = st.columns(2)
+_c3, _c4 = st.columns(2)
 with _c1:
     st.metric('総釣果数', f'{_kpi_total:,} 匹')
 with _c2:
@@ -718,9 +746,9 @@ with tab0:
             for _, _mwr in _h_mw.iterrows():
                 _mw_map[_mwr['date']] = _mwr  # 上書き（より精度高い）
 
-        # テーブルヘッダー
-        _hcols = st.columns([2, 2, 2, 2, 3, 4])
-        for _hc, _ht in zip(_hcols, ['判定', '日付', 'スコア', '期待釣果', '休船リスク', '注目魚種']):
+        # テーブルヘッダー（3列: 判定 | 日付+休船リスク | スコア+期待釣果）
+        _hcols = st.columns([2, 5, 3])
+        for _hc, _ht in zip(_hcols, ['判定', '日付 / 休船リスク', 'スコア / 釣果']):
             _hc.markdown(f'<span style="font-size:0.8rem; color:#888; font-weight:600;">{_ht}</span>',
                          unsafe_allow_html=True)
         st.markdown('<hr style="margin:4px 0 8px;">', unsafe_allow_html=True)
@@ -748,13 +776,13 @@ with tab0:
                     _mw_str,  _mw_color = f'○ 出船可({int(_mw_spd)}m/s)', '#1a7a4a'
             else:
                 _verdict_sym, _v_color, _v_bg = '✅ GO',    '#1a7a4a', '#d4edda'
-                _mw_str, _mw_color = '– (風速データなし)', '#aaa'
+                _mw_str, _mw_color = '–', '#aaa'
 
+            _bold     = 'font-weight:700;' if _is_sel else ''
             _date_str = f"{_d.month}/{_d.day}({_wd})" + (' ★今日' if _is_today else '')
-            _exp_str  = f"{_p.get('expected_count', 0):.1f} 匹"
-            _sp_str   = _species_lift_str(_p.get('species_proba', {}), _h_br, top_n=2)
+            _exp_str  = f"{_p.get('expected_count', 0):.1f}匹"
 
-            _rcols = st.columns([2, 2, 2, 2, 3, 4])
+            _rcols = st.columns([2, 5, 3])
             with _rcols[0]:
                 if st.button(
                     _verdict_sym,
@@ -764,17 +792,16 @@ with tab0:
                 ):
                     st.session_state['home_sel_date'] = _d
                     st.rerun()
-            _bold = 'font-weight:700;' if _is_sel else ''
-            _rcols[1].markdown(f'<span style="font-size:0.92rem;{_bold}">{_date_str}</span>',
-                               unsafe_allow_html=True)
-            _rcols[2].markdown(f'<span style="font-size:0.92rem; color:{_v_color};{_bold}">{_gp*100:.0f}%</span>',
-                               unsafe_allow_html=True)
-            _rcols[3].markdown(f'<span style="font-size:0.92rem;">{_exp_str}</span>',
-                               unsafe_allow_html=True)
-            _rcols[4].markdown(f'<span style="font-size:0.82rem; color:{_mw_color};{_bold}">{_mw_str}</span>',
-                               unsafe_allow_html=True)
-            _rcols[5].markdown(f'<span style="font-size:0.85rem; color:#555;">{_sp_str}</span>',
-                               unsafe_allow_html=True)
+            _rcols[1].markdown(
+                f'<span style="font-size:0.92rem;{_bold}">{_date_str}</span><br>'
+                f'<span style="font-size:0.78rem; color:{_mw_color};">{_mw_str}</span>',
+                unsafe_allow_html=True,
+            )
+            _rcols[2].markdown(
+                f'<span style="font-size:0.92rem; color:{_v_color};{_bold}">{_gp*100:.0f}%</span><br>'
+                f'<span style="font-size:0.78rem; color:#555;">{_exp_str}</span>',
+                unsafe_allow_html=True,
+            )
 
         st.markdown('<hr style="margin:8px 0 16px;">', unsafe_allow_html=True)
         _sel_date = st.session_state['home_sel_date']
@@ -853,8 +880,12 @@ with tab0:
         df_all['date'] >= (df_all['date'].max() - pd.Timedelta(days=7))
     ]['water_temp_avg'].mean()
 
-    _weather_str = (str(_sel_wx_row['weather'])
-                    if _sel_wx_row is not None and pd.notna(_sel_wx_row.get('weather')) else '–')
+    # 天気: predictions.json → _h_wx の順で取得
+    _weather_raw = (_sel_pred.get('weather') if _sel_pred else None)
+    if not _weather_raw and _sel_wx_row is not None and pd.notna(_sel_wx_row.get('weather')):
+        _weather_raw = str(_sel_wx_row['weather'])
+    _weather_str = _weather_raw or '–'
+
     # Open-Meteo の windspeed_10m_max は km/h 単位のため m/s に変換（÷ 3.6）
     _wind_ms  = (float(_sel_pred['wind_ms_max']) / 3.6
                  if _sel_pred and _sel_pred.get('wind_ms_max') is not None
@@ -863,9 +894,10 @@ with tab0:
                  if _sel_fc_row is not None and pd.notna(_sel_fc_row.get('forecast_wave_height_m')) else None)
     _wave_str = f"{_wave_val:.1f} m" if _wave_val is not None else '–'
     _wt_str   = f"{_recent_wt:.1f} ℃" if pd.notna(_recent_wt) else '–'
-    _tide_str = _sel_tide_name or '–'
+    _tide_str = _sel_tide_name or (_sel_pred.get('tide_name') if _sel_pred else None) or '–'
 
-    _mc1, _mc2, _mc3, _mc4 = st.columns(4)
+    _mc1, _mc2 = st.columns(2)
+    _mc3, _mc4 = st.columns(2)
     with _mc1: st.metric('☁️ 天気', _weather_str)
     with _mc2: st.metric('🌊 波高（予報）', _wave_str)
     with _mc3: st.metric('🌡️ 水温（直近7日）', _wt_str)
@@ -1125,101 +1157,101 @@ with tab1:
           )
           selected_pred = next((p for p in ai_predictions if p['date'] == selected_pred_date), None)
 
-          rank_col, adv_col = st.columns([1, 1])
+          st.markdown('###### 🏆 磯の期待度ランキング（上位10磯）')
+          with st.spinner('磯ランキング計算中...'):
+              rank_df = _load_spot_ranking(selected_pred_date.isoformat())
+          if rank_df.empty:
+              st.info('磯ランキングデータがありません。')
+          else:
+              rank_df_disp = rank_df.head(10).copy()
+              rank_df_disp['expected_count'] = rank_df_disp['expected_count'].round(1)
+              rank_df_disp['go_proba']       = (rank_df_disp['go_proba'] * 100).round(1)
+              rank_df_disp = rank_df_disp.rename(columns={
+                  'spot':           '釣り場',
+                  'expected_count': '期待釣果（匹）',
+                  'go_proba':       '推奨スコア（%）',
+              })
+              st.dataframe(rank_df_disp, use_container_width=True, hide_index=True)
 
-          with rank_col:
-              st.markdown('###### 🏆 磯の期待度ランキング（上位10磯）')
-              with st.spinner('磯ランキング計算中...'):
-                  rank_df = _load_spot_ranking(selected_pred_date.isoformat())
-              if rank_df.empty:
-                  st.info('磯ランキングデータがありません。')
-              else:
-                  rank_df_disp = rank_df.head(10).copy()
-                  rank_df_disp['expected_count'] = rank_df_disp['expected_count'].round(1)
-                  rank_df_disp['go_proba']       = (rank_df_disp['go_proba'] * 100).round(1)
-                  rank_df_disp = rank_df_disp.rename(columns={
-                      'spot':           '釣り場',
-                      'expected_count': '期待釣果（匹）',
-                      'go_proba':       '推奨スコア（%）',
-                  })
-                  st.dataframe(rank_df_disp, use_container_width=True, hide_index=True)
+          st.markdown('###### 💬 Claude AIへのプロンプト')
+          if selected_pred is not None:
+              forecast_df_api = _load_forecast_api()
+              fc_row = None
+              if forecast_df_api is not None:
+                  fc_match = forecast_df_api[
+                      forecast_df_api['date'] == selected_pred_date
+                  ]
+                  fc_row = fc_match.iloc[0] if not fc_match.empty else None
 
-          with adv_col:
-              st.markdown('###### 💬 Claude AIへのプロンプト')
-              if selected_pred is not None:
-                  forecast_df_api = _load_forecast_api()
-                  fc_row = None
-                  if forecast_df_api is not None:
-                      fc_match = forecast_df_api[
-                          forecast_df_api['date'] == selected_pred_date
-                      ]
-                      fc_row = fc_match.iloc[0] if not fc_match.empty else None
+              tide_day = None
+              if tide_df is not None and not tide_df.empty:
+                  td = tide_df[tide_df['date'] == selected_pred_date]
+                  if not td.empty:
+                      tide_day = td.iloc[0].get('tide_name', '')
 
-                  tide_day = None
-                  if tide_df is not None and not tide_df.empty:
-                      td = tide_df[tide_df['date'] == selected_pred_date]
-                      if not td.empty:
-                          tide_day = td.iloc[0].get('tide_name', '')
+              # 天気: predictions.json → wx_df の順で取得
+              _pred_weather  = selected_pred.get('weather')
+              _pred_temp_max = selected_pred.get('temp_max')
+              _pred_temp_min = selected_pred.get('temp_min')
+              if not _pred_weather and wx_df is not None:
+                  wd_rows = wx_df[wx_df['date'] == selected_pred_date]
+                  if not wd_rows.empty:
+                      wx_day = wd_rows.iloc[0]
+                      _pred_weather  = _pred_weather  or (str(wx_day['weather'])  if pd.notna(wx_day.get('weather'))  else None)
+                      _pred_temp_max = _pred_temp_max or (float(wx_day['temp_max']) if pd.notna(wx_day.get('temp_max')) else None)
+                      _pred_temp_min = _pred_temp_min or (float(wx_day['temp_min']) if pd.notna(wx_day.get('temp_min')) else None)
 
-                  wx_day = None
-                  if wx_df is not None:
-                      wd_rows = wx_df[wx_df['date'] == selected_pred_date]
-                      wx_day = wd_rows.iloc[0] if not wd_rows.empty else None
+              recent_wt = (
+                  df_all[df_all['date'] >= (df_all['date'].max() - pd.Timedelta(days=7))]
+                  ['water_temp_avg'].mean()
+              )
+              wt = float(recent_wt) if pd.notna(recent_wt) else None
 
-                  recent_wt = (
-                      df_all[df_all['date'] >= (df_all['date'].max() - pd.Timedelta(days=7))]
-                      ['water_temp_avg'].mean()
+              _sp_proba_raw = selected_pred.get('species_proba', {})
+              _br = _load_species_base_rates()
+              species_rank = sorted(
+                  [
+                      (sp, p / _br[sp] if _br.get(sp, 0) > 0 else 1.0)
+                      for sp, p in _sp_proba_raw.items()
+                  ],
+                  key=lambda x: -x[1],
+              )[:3]
+              wave_fc = fc_row.get('forecast_wave_height_m') if fc_row is not None else None
+              sim_mask = df_all['count'].notna()
+              if wave_fc is not None and pd.notna(wave_fc):
+                  sim_mask &= df_all['wave_height_m'].between(
+                      float(wave_fc) - 0.5, float(wave_fc) + 0.5
                   )
-                  wt = float(recent_wt) if pd.notna(recent_wt) else None
+              if wt is not None:
+                  sim_mask &= df_all['water_temp_avg'].between(wt - 1, wt + 1)
+              sim_df = df_all[sim_mask]
 
-                  _sp_proba_raw = selected_pred.get('species_proba', {})
-                  _br = _load_species_base_rates()
-                  species_rank = sorted(
-                      [
-                          (sp, p / _br[sp] if _br.get(sp, 0) > 0 else 1.0)
-                          for sp, p in _sp_proba_raw.items()
-                      ],
-                      key=lambda x: -x[1],
-                  )[:3]
-                  wave_fc = fc_row.get('forecast_wave_height_m') if fc_row is not None else None
-                  sim_mask = df_all['count'].notna()
-                  if wave_fc is not None and pd.notna(wave_fc):
-                      sim_mask &= df_all['wave_height_m'].between(
-                          float(wave_fc) - 0.5, float(wave_fc) + 0.5
-                      )
-                  if wt is not None:
-                      sim_mask &= df_all['water_temp_avg'].between(wt - 1, wt + 1)
-                  sim_df = df_all[sim_mask]
-
-                  prompt_text = prompt_builder.build_prompt(
-                      target_date    = selected_pred_date,
-                      weather        = (str(wx_day['weather'])
-                                        if wx_day is not None and pd.notna(wx_day.get('weather')) else '不明'),
-                      temp_max       = (float(wx_day['temp_max'])
-                                        if wx_day is not None and pd.notna(wx_day.get('temp_max')) else None),
-                      temp_min       = (float(wx_day['temp_min'])
-                                        if wx_day is not None and pd.notna(wx_day.get('temp_min')) else None),
-                      wind_dir       = selected_pred.get('wind_dir', '不明') if hasattr(selected_pred, 'get') else '不明',
-                      wind_speed_ms  = None,
-                      wave_height_m  = (float(wave_fc) if wave_fc is not None and pd.notna(wave_fc) else None),
-                      water_temp_c   = wt,
-                      tide_name      = tide_day or '不明',
-                      rising_ratio   = selected_pred.get('rising_ratio'),
-                      precip_1d      = selected_pred.get('precip_1d'),
-                      precip_2d      = selected_pred.get('precip_2d'),
-                      precip_3d      = selected_pred.get('precip_3d'),
-                      predicted_count= selected_pred.get('expected_count'),
-                      go_score_pct   = (selected_pred.get('go_proba', 0) * 100
-                                        if selected_pred.get('go_proba') is not None else None),
-                      species_rank   = species_rank,
-                      n_similar      = len(sim_df),
-                      avg_count_similar = (float(sim_df['count'].mean())
-                                           if len(sim_df) > 0 else None),
-                  )
-                  st.text_area('プロンプト（コピーして claude.ai に貼り付け）',
-                               value=prompt_text, height=300,
-                               key='ai_prompt_text')
-                  st.caption('上のテキストをコピーして https://claude.ai に貼り付けてください。')
+              prompt_text = prompt_builder.build_prompt(
+                  target_date    = selected_pred_date,
+                  weather        = _pred_weather or '不明',
+                  temp_max       = float(_pred_temp_max) if _pred_temp_max is not None else None,
+                  temp_min       = float(_pred_temp_min) if _pred_temp_min is not None else None,
+                  wind_dir       = selected_pred.get('wind_dir', '不明') if hasattr(selected_pred, 'get') else '不明',
+                  wind_speed_ms  = None,
+                  wave_height_m  = (float(wave_fc) if wave_fc is not None and pd.notna(wave_fc) else None),
+                  water_temp_c   = wt,
+                  tide_name      = tide_day or selected_pred.get('tide_name') or '不明',
+                  rising_ratio   = selected_pred.get('rising_ratio'),
+                  precip_1d      = selected_pred.get('precip_1d'),
+                  precip_2d      = selected_pred.get('precip_2d'),
+                  precip_3d      = selected_pred.get('precip_3d'),
+                  predicted_count= selected_pred.get('expected_count'),
+                  go_score_pct   = (selected_pred.get('go_proba', 0) * 100
+                                    if selected_pred.get('go_proba') is not None else None),
+                  species_rank   = species_rank,
+                  n_similar      = len(sim_df),
+                  avg_count_similar = (float(sim_df['count'].mean())
+                                       if len(sim_df) > 0 else None),
+              )
+              st.text_area('プロンプト（コピーして claude.ai に貼り付け）',
+                           value=prompt_text, height=300,
+                           key='ai_prompt_text')
+              st.caption('上のテキストをコピーして https://claude.ai に貼り付けてください。')
 
     st.markdown('---')
 
@@ -1412,26 +1444,27 @@ with tab1:
                 day_hourly = (hourly_df[hourly_df['date'] == d]
                               if hourly_df is not None else pd.DataFrame())
 
-                # ── 4列明細（時刻ラベル付き）──
-                cols = st.columns(4)
-                for col_idx, hour in enumerate(_HOURS):
-                    slot = (day_hourly[day_hourly['hour'] == hour]
-                            if not day_hourly.empty else pd.DataFrame())
-                    hr_wx = (day_rows[day_rows['hour'] == hour]
-                             if day_wx is not None and not day_rows.empty
-                             else pd.DataFrame())
-                    with cols[col_idx]:
-                        st.markdown(f"**{hour:02d}:00**")
-                        row = slot.iloc[0] if not slot.empty else None
-                        if row is not None and row.get('weather_text'):
-                            st.caption(row['weather_text'])
-                        if row is not None and pd.notna(row.get('wind_speed_ms')):
-                            st.caption(f"💨 {row['wind_dir']} {row['wind_speed_ms']:.1f}m/s")
-                        _precip = row.get('precipitation_mm') if row is not None else None
-                        if _precip is not None and pd.notna(_precip) and float(_precip) > 0:
-                            st.caption(f"🌧️ {float(_precip):.1f}mm")
-                        if not hr_wx.empty and pd.notna(hr_wx.iloc[0].get('humidity')):
-                            st.caption(f"湿度 {hr_wx.iloc[0]['humidity']:.0f}%")
+                # ── 時刻別明細（2列×2行）──
+                for row_start in (0, 2):
+                    cols = st.columns(2)
+                    for col_idx, hour in enumerate(_HOURS[row_start:row_start + 2]):
+                        slot = (day_hourly[day_hourly['hour'] == hour]
+                                if not day_hourly.empty else pd.DataFrame())
+                        hr_wx = (day_rows[day_rows['hour'] == hour]
+                                 if day_wx is not None and not day_rows.empty
+                                 else pd.DataFrame())
+                        with cols[col_idx]:
+                            st.markdown(f"**{hour:02d}:00**")
+                            row = slot.iloc[0] if not slot.empty else None
+                            if row is not None and row.get('weather_text'):
+                                st.caption(row['weather_text'])
+                            if row is not None and pd.notna(row.get('wind_speed_ms')):
+                                st.caption(f"💨 {row['wind_dir']} {row['wind_speed_ms']:.1f}m/s")
+                            _precip = row.get('precipitation_mm') if row is not None else None
+                            if _precip is not None and pd.notna(_precip) and float(_precip) > 0:
+                                st.caption(f"🌧️ {float(_precip):.1f}mm")
+                            if not hr_wx.empty and pd.notna(hr_wx.iloc[0].get('humidity')):
+                                st.caption(f"湿度 {hr_wx.iloc[0]['humidity']:.0f}%")
 
 
 # ============================================================
