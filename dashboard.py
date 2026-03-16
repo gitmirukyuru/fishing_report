@@ -394,15 +394,21 @@ hr { border-color: #D5E6EF; margin: 1.2rem 0; }
 .dcard-wrap.drm-check .dcard-dep { background: #b07d00; }
 .dcard-wrap.drm-stop  .dcard-dep { background: #c0392b; }
 
-/* カード: margin-bottom負値でスペースを相殺し、ボタンと重ねる */
+/* marker spanは非表示（:has()はdisplay:noneでもマッチする） */
+.dcard-marker { display: none !important; }
+
+/* カードコンテナ: 内部余白を完全除去 */
 [data-testid="element-container"]:has(.dcard-marker) {
-    margin-bottom: 0 !important;
-    padding: 0 !important;
-}
-[data-testid="element-container"]:has(.dcard-marker) > div {
     margin: 0 !important;
     padding: 0 !important;
 }
+[data-testid="element-container"]:has(.dcard-marker) > div,
+[data-testid="element-container"]:has(.dcard-marker) .stMarkdown,
+[data-testid="element-container"]:has(.dcard-marker) .stMarkdown > div {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+/* カード: margin-bottom負値でスペースを相殺 */
 .dcard-wrap {
     position: relative !important;
     z-index: 1 !important;
@@ -1434,6 +1440,7 @@ with tab0:
             # HTMLカード組み立て
             _card_html = (
                 f'<div class="dcard-wrap {_u_drm} {_u_drm_today}">'
+                f'<span class="dcard-marker {_u_drm} {_u_drm_today}"></span>'
                 f'<div class="dcard-l">'
                 f'<div class="dcard-stars">{_star_disp}</div>'
                 f'<div class="dcard-count">{_count_disp}</div>'
@@ -1451,7 +1458,6 @@ with tab0:
                 f'</div>'
                 f'</div>'
                 f'</div>'
-                f'<span class="dcard-marker {_u_drm} {_u_drm_today}"></span>'
             )
             st.markdown(_card_html, unsafe_allow_html=True)
             if st.button('', key=f'unified_{_uidx}', use_container_width=True):
