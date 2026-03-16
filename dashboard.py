@@ -765,6 +765,271 @@ def _fmt_tide_list(rows: pd.DataFrame) -> str:
 
 
 # ============================================================
+# Tab 0: 今日の判断 — 詳細ダイアログ
+# ============================================================
+
+@st.dialog('📅 釣行詳細', width='large')
+def _show_day_detail(sel_date, sel_pred, mw_row, h_wx, h_fc, h_tide, h_br, today, wdays,
+                     load_ranking_fn, build_reasons_fn, species_lift_fn):
+    """選択した日の詳細情報をダイアログで表示する。"""
+    _d = sel_date
+    _wd = wdays[_d.weekday()]
+    _is_today = (_d == today)
+
+    # ── GO/CHECK/STOP バナー ──────────────────────────────────
+    _rp   = mw_row['risk_prob'] if mw_row is not None else 0.0
+    _spd  = mw_row['wind_max_ms'] if mw_row is not None else None
+    _gp   = sel_pred.get('go_proba') if sel_pred else None
+    _ec   = sel_pred.get('expected_count') if sel_pred else None
+    _sp_str = species_lift_fn(sel_pred.get('species_proba', {}) if sel_pred else {}, h_br, top_n=2)
+
+    if _rp >= 0.90:
+        _verdict, _vc, _vbg = '✖ STOP', '#7a1c24', '#f8d7da'
+        _vmsg = '出船困難な可能性があります'
+    elif _rp >= 0.75:
+        _verdict, _vc, _vbg = '⚠️ CHECK', '#7a5f00', '#fff3cd'
+        _vmsg = '出船できない可能性があります。確認してください'
+    else:
+        _verdict, _vc, _vbg = '✅ GO', '#1a7a4a', '#d4edda'
+        _vmsg = '出船できる見込みです'
+
+    _today_badge = ' <span style="background:#1B8FA8;color:#fff;border-radius:6px;padding:2px 8px;font-size:0.75rem;vertical-align:middle;">今日</span>' if _is_today else ''
+    st.markdown(
+        f'<h3 style="margin:0 0 12px;">{_d.month}/{_d.day}（{_wd}）{_today_badge}</h3>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(f"""
+<div style="background:{_vbg};border-left:6px solid {_vc};
+     padding:18px 22px;border-radius:10px;margin-bottom:18px;">
+  <div style="font-size:1.8rem;font-weight:800;color:{_vc};line-height:1.1;">{_verdict}</div>
+  <div style="font-size:0.9rem;color:{_vc};margin-top:4px;">{_vmsg}</div>
+  <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:20px;color:#333;font-size:0.88rem;">
+    {'<span>推奨スコア&nbsp;<b>' + f'{_gp*100:.0f}%</b></span>' if _gp is not None else ''}
+    {'<span>期待釣果&nbsp;<b>' + f'{_ec:.1f}&nbsp;匹</b></span>' if _ec is not None else ''}
+    {'<span>注目魚種&nbsp;<b>' + _sp_str + '</b></span>' if _sp_str else ''}
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+    # ── 4条件カード ────────────────────────────────────────────
+    _wx_row = None
+    if h_wx is not None:
+        _wr = h_wx[h_wx['date'] == _d]
+        _wx_row = _wr.iloc[0] if not _wr.empty else None
+    _fc_row = None
+    if h_fc is not None:
+        _fr = h_fc[h_fc['date'] == _d]
+        _fc_row = _fr.iloc[0] if not _fr.empty else None
+    _tide_name = None
+    if h_tide is not None and not h_tide.empty:
+        _tn = h_tide[(h_tide['date'] == _d) & h_tide['tide_name'].notna()]
+        if not _tn.empty:
+            _tide_name = str(_tn.iloc[0]['tide_name'])
+
+    _weather_raw = (sel_pred.get('weather') if sel_pred else None)
+    if not _weather_raw and _wx_row is not None and pd.notna(_wx_row.get('weather')):
+        _weather_raw = str(_wx_row['weather'])
+    _weather_str = _weather_raw or '–'
+
+    _wave_val = (float(_fc_row['forecast_wave_height_m'])
+                 if _fc_row is not None and pd.notna(_fc_row.get('forecast_wave_height_m')) else None)
+    _wave_str = f"{_wave_val:.1f} m" if _wave_val is not None else '–'
+
+    _wind_ms_val = None
+    if sel_pred and sel_pred.get('wind_ms_max') is not None:
+        try:
+            _wind_ms_val = float(sel_pred['wind_ms_max']) / 3.6
+        except (TypeError, ValueError):
+            pass
+
+    _recent_wt = df_all[
+        df_all['date'] >= (df_all['date'].max() - pd.Timedelta(days=7))
+    ]['water_temp_avg'].mean()
+    _wt_str = f"{_recent_wt:.1f} ℃" if pd.notna(_recent_wt) else '–'
+    _tide_str = _tide_name or (sel_pred.get('tide_name') if sel_pred else None) or '–'
+
+    _dc = ("background:#fff;border-radius:12px;"
+           "padding:clamp(12px,3.5vw,18px) clamp(14px,4vw,20px);"
+           "box-shadow:0 2px 10px rgba(0,0,0,0.08);")
+    _dcL = _dc + "border-left:4px solid #1B8FA8;"
+    _dcR = _dc + "border-left:4px solid #22AECB;"
+    _dlb = "font-size:clamp(0.6rem,2vw,0.72rem);color:#6B7B8D;font-weight:600;letter-spacing:0.05em;margin-bottom:6px;"
+    _dvl = "font-size:clamp(1.0rem,4vw,1.3rem);color:#0B3D5C;font-weight:700;line-height:1.2;"
+    st.markdown(f"""
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(8px,2.5vw,12px);margin-bottom:18px;">
+  <div style="{_dcL}"><div style="{_dlb}">☁️ 天気</div><div style="{_dvl}">{_weather_str}</div></div>
+  <div style="{_dcL}"><div style="{_dlb}">🌊 波高（予報）</div><div style="{_dvl}">{_wave_str}</div></div>
+  <div style="{_dcR}"><div style="{_dlb}">🌡️ 水温（直近7日）</div><div style="{_dvl}">{_wt_str}</div></div>
+  <div style="{_dcR}"><div style="{_dlb}">🌙 潮</div><div style="{_dvl}">{_tide_str}</div></div>
+</div>
+""", unsafe_allow_html=True)
+
+    # ── 懸念事項 / 好条件 ─────────────────────────────────────
+    _rising = sel_pred.get('rising_ratio') if sel_pred else None
+    _reasons = build_reasons_fn(
+        pred=sel_pred,
+        wind_ms=_wind_ms_val,
+        wave_val=_wave_val,
+        wt=_recent_wt if pd.notna(_recent_wt) else None,
+        tide_name=_tide_name,
+        rising=_rising,
+    )
+    _bad  = [(ic, tx) for ic, tx, b in _reasons if b]
+    _good = [(ic, tx) for ic, tx, b in _reasons if not b]
+
+    def _reason_cards(items, accent, bg):
+        html = f'<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">'
+        for ic, tx in items:
+            html += (
+                f'<div style="background:{bg};border-left:4px solid {accent};'
+                f'border-radius:8px;padding:10px 14px;font-size:0.88rem;color:#1C3448;">'
+                f'<span style="margin-right:6px;">{ic}</span>{tx}</div>'
+            )
+        html += '</div>'
+        return html
+
+    st.markdown('#### ⚠️ 懸念事項' if _bad else '#### ✅ 懸念事項なし')
+    if _bad:
+        st.markdown(_reason_cards(_bad, '#c0392b', '#fdf3f3'), unsafe_allow_html=True)
+    else:
+        st.markdown('<div style="color:#1a7a4a;font-size:0.9rem;margin-bottom:14px;">現在の予報では大きな懸念点はありません。</div>', unsafe_allow_html=True)
+
+    st.markdown('#### ✅ 好条件の理由' if _good else '#### ℹ️ 好条件なし')
+    if _good:
+        st.markdown(_reason_cards(_good, '#1a7a4a', '#f0faf4'), unsafe_allow_html=True)
+    else:
+        st.markdown('<div style="color:#888;font-size:0.9rem;margin-bottom:14px;">この日は好条件の要素が少ない状況です。</div>', unsafe_allow_html=True)
+
+    st.markdown('<hr style="margin:8px 0 16px;">', unsafe_allow_html=True)
+
+    # ── 磯ランキング TOP5 ─────────────────────────────────────
+    st.markdown(f'#### 🏆 {_d.month}/{_d.day} の磯 期待度ランキング TOP5')
+    with st.spinner('計算中...'):
+        _dlg_rank = load_ranking_fn(_d.isoformat())
+    if _dlg_rank.empty:
+        st.info('磯ランキングデータがありません。')
+    else:
+        for _ri, _rrow in _dlg_rank.head(5).iterrows():
+            _rn = _ri + 1
+            _medal = {1: '🥇', 2: '🥈', 3: '🥉'}.get(_rn, f'{_rn}.')
+            st.markdown(f"""
+<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #eee;">
+  <span style="font-size:1.1rem;min-width:28px;">{_medal}</span>
+  <span style="font-weight:600;flex:1;">{_rrow['spot']}</span>
+  <span style="color:#e07b39;font-weight:700;">{_rrow['expected_count']:.1f} 匹</span>
+  <span style="color:#888;font-size:0.82rem;min-width:36px;text-align:right;">{_rrow['go_proba']*100:.0f}%</span>
+</div>""", unsafe_allow_html=True)
+    st.caption('詳細は「🏆 釣り場ランキング」タブへ')
+
+    st.markdown('<hr style="margin:8px 0 16px;">', unsafe_allow_html=True)
+
+    # ── 注目魚種 ──────────────────────────────────────────────
+    st.markdown('#### 🐟 注目魚種（平均比）')
+    if sel_pred:
+        _sp_raw = sel_pred.get('species_proba', {})
+        _sp_lifts = {
+            sp: p / h_br[sp] if h_br.get(sp, 0) > 0 else 1.0
+            for sp, p in _sp_raw.items()
+        }
+        for _sp, _lv in sorted(_sp_lifts.items(), key=lambda x: -x[1]):
+            _sc_color = '#1a7a4a' if _lv >= 1.2 else ('#7a5f00' if _lv >= 0.8 else '#999')
+            _bar_w = min(int(_lv / 2.0 * 100), 100)
+            st.markdown(f"""
+<div style="margin-bottom:10px;">
+  <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+    <span style="font-weight:600;">{_sp}</span>
+    <span style="color:{_sc_color};font-weight:700;">{_lv:.2f}x</span>
+  </div>
+  <div style="background:#eee;border-radius:4px;height:6px;">
+    <div style="background:{_sc_color};width:{_bar_w}%;height:6px;border-radius:4px;"></div>
+  </div>
+</div>""", unsafe_allow_html=True)
+        st.caption('1.0x = 平均並み　2.0x = 平均の2倍釣れやすい')
+    else:
+        st.info('AIモデルが必要です。')
+
+    if st.button('閉じる', use_container_width=True):
+        st.rerun()
+
+
+def _build_reasons(pred, wind_ms, wave_val, wt, tide_name, rising):
+    """ネガティブ・ポジティブ要因を (icon, text, is_bad) のリストで返す。"""
+    reasons = []
+
+    # 風速
+    if wind_ms is not None:
+        if wind_ms >= 15:
+            reasons.append(('🚨', f'強風 {wind_ms:.1f}m/s — 渡礁・釣行が危険な風速です', True))
+        elif wind_ms >= 10:
+            reasons.append(('⚠️', f'やや強風 {wind_ms:.1f}m/s — 仕掛けが流されやすくなります', True))
+        else:
+            reasons.append(('✅', f'風は穏やか {wind_ms:.1f}m/s — 釣りやすい条件です', False))
+
+    # 風向（predに wind_dir_deg が入っている場合）
+    if pred:
+        _wd_deg = pred.get('wind_dir_deg')
+        if _wd_deg is not None and not pd.isna(_wd_deg):
+            _wd_deg = float(_wd_deg)
+            # 串本の磯は山を背にしているため北〜北西風は影響小
+            # 南〜南東風（海側からの風）は磯に直接当たり危険
+            if 135 <= _wd_deg <= 225:
+                reasons.append(('⚠️', f'南〜南西風（{_wd_deg:.0f}°）— 海側からの風で磯に直接当たります', True))
+            elif 270 <= _wd_deg <= 360 or _wd_deg <= 30:
+                reasons.append(('✅', f'北〜北西風（{_wd_deg:.0f}°）— 山が背後にあり串本の磯は風の影響を受けにくい方向です', False))
+
+    # 波高
+    if wave_val is not None:
+        if wave_val >= 2.5:
+            reasons.append(('🚨', f'高波 {wave_val:.1f}m — 磯釣り困難な波高です', True))
+        elif wave_val >= 1.5:
+            reasons.append(('⚠️', f'波やや高め {wave_val:.1f}m — 荒れ気味の磯があります', True))
+        else:
+            reasons.append(('✅', f'波は穏やか {wave_val:.1f}m — 磯釣りに適した波高です', False))
+
+    # 水温
+    if wt is not None and not pd.isna(wt):
+        if wt < 14:
+            reasons.append(('⚠️', f'水温 {wt:.1f}℃ — 低すぎてグレも口を使いにくくなります', True))
+        elif wt >= 15 and wt <= 22:
+            reasons.append(('✅', f'水温 {wt:.1f}℃ — グレの適水温帯です', False))
+
+    # 潮
+    if tide_name:
+        if tide_name in ('大潮',):
+            reasons.append(('✅', f'潮は{tide_name} — 潮の動きが最も活発で好条件です', False))
+        elif tide_name in ('長潮', '若潮'):
+            reasons.append(('⚠️', f'潮は{tide_name} — 潮の動きが弱く釣果が落ちやすい時期です', True))
+
+    # 上り潮割合
+    if rising is not None and not pd.isna(rising):
+        rising = float(rising)
+        if rising >= 0.6:
+            reasons.append(('✅', f'上り潮が多い（{rising*100:.0f}%）— 朝〜昼の釣りに有利です', False))
+        elif rising <= 0.25:
+            reasons.append(('⚠️', f'上り潮が少ない（{rising*100:.0f}%）— 下り潮中心の時間帯です', True))
+
+    # 降水
+    if pred:
+        p1 = pred.get('precip_1d', 0) or 0
+        p2 = pred.get('precip_2d', 0) or 0
+        p3 = pred.get('precip_3d', 0) or 0
+        if p1 > 5 or p2 > 5 or p3 > 5:
+            reasons.append(('⚠️', f'直近に降雨あり（前日{p1:.0f}mm / 前々日{p2:.0f}mm）— 濁りが入っている可能性があります', True))
+        elif p1 == 0 and p2 == 0:
+            reasons.append(('✅', '直近3日間は無雨 — 海の状態は安定しています', False))
+
+    # 総合スコア
+    if pred:
+        gp = pred.get('go_proba', 0)
+        if gp < 0.3:
+            reasons.append(('✖', f'AI総合判定 {gp*100:.0f}% — 過去の同条件と比較してかなり悪い日です', True))
+        elif gp >= 0.6:
+            reasons.append(('✅', f'AI総合判定 {gp*100:.0f}% — 過去の同条件と比較して良い日です', False))
+
+    return reasons
+
+
+# ============================================================
 # Tab 0: 今日の判断（ホーム）
 # ============================================================
 with tab0:
@@ -804,331 +1069,63 @@ with tab0:
             for _, _mwr in _h_mw.iterrows():
                 _mw_map[_mwr['date']] = _mwr  # 上書き（より精度高い）
 
-        # ── 7日間テーブル（行タップで詳細表示）────────────────────
-        _home_rows = []
-        for _p in _h_ai:
+        # ── 7日間リスト（各行に詳細ボタン）────────────────────────
+        st.caption('「詳細」をタップすると条件・磯ランキングを確認できます')
+        for _idx, _p in enumerate(_h_ai):
             _d  = _p['date']
             _wd = _WDAYS[_d.weekday()]
             _gp = _p.get('go_proba', 0)
+            _ec = _p.get('expected_count', 0)
             _mw_row = _mw_map.get(_d)
             if _mw_row is not None:
                 _mw_spd  = _mw_row['wind_max_ms']
                 _mw_prob = _mw_row['risk_prob']
                 if _mw_prob >= 0.90:
-                    _verdict_sym = '✖ STOP'
+                    _vs, _vc2, _vbg2 = '✖ STOP',   '#7a1c24', '#fdf0f0'
                     _mw_str = f'休船確率大 {int(_mw_spd)}m/s'
                 elif _mw_prob >= 0.75:
-                    _verdict_sym = '⚠️ CHECK'
+                    _vs, _vc2, _vbg2 = '⚠️ CHECK', '#7a5f00', '#fffbe6'
                     _mw_str = f'可能性あり {int(_mw_spd)}m/s'
                 else:
-                    _verdict_sym = '✅ GO'
+                    _vs, _vc2, _vbg2 = '✅ GO',    '#1a7a4a', '#f0faf4'
                     _mw_str = f'出船可 {int(_mw_spd)}m/s'
             else:
-                _verdict_sym = '✅ GO'
+                _vs, _vc2, _vbg2 = '✅ GO', '#1a7a4a', '#f0faf4'
                 _mw_str = '–'
-            _home_rows.append({
-                '判定':       _verdict_sym,
-                '日付':       f"{_d.month}/{_d.day}({_wd})" + (" ★今日" if _d == _today else ""),
-                '休船リスク': _mw_str,
-                'スコア':     f"{_gp*100:.0f}%",
-                '期待釣果':   f"{_p.get('expected_count', 0):.1f}匹",
-            })
 
-        _df_home = pd.DataFrame(_home_rows)
-        st.caption('行をタップすると詳細を表示します')
-        _home_event = st.dataframe(
-            _df_home,
-            use_container_width=True,
-            hide_index=True,
-            on_select='rerun',
-            selection_mode='single-row',
-            column_config={
-                '判定':       st.column_config.TextColumn(width='small'),
-                '日付':       st.column_config.TextColumn(width='small'),
-                '休船リスク': st.column_config.TextColumn(width='medium'),
-                'スコア':     st.column_config.TextColumn(width='small'),
-                '期待釣果':   st.column_config.TextColumn(width='small'),
-            },
-        )
-        if _home_event.selection.rows:
-            _new_sel = _h_ai[_home_event.selection.rows[0]]['date']
-            if st.session_state.get('home_sel_date') != _new_sel:
-                st.session_state['home_sel_date'] = _new_sel
+            _today_mark = ' ⭐今日' if _d == _today else ''
+            _date_str = f"{_d.month}/{_d.day}（{_wd}）{_today_mark}"
 
-        st.markdown('<hr style="margin:8px 0 16px;">', unsafe_allow_html=True)
-        _sel_date = st.session_state['home_sel_date']
+            _col_main, _col_btn = st.columns([6, 1])
+            with _col_main:
+                st.markdown(f"""
+<div style="background:{_vbg2};border-left:4px solid {_vc2};border-radius:10px;
+     padding:12px 16px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
+  <span style="font-weight:700;color:{_vc2};min-width:72px;">{_vs}</span>
+  <span style="font-weight:600;color:#0B3D5C;flex:1;min-width:90px;">{_date_str}</span>
+  <span style="color:#555;font-size:0.85rem;">{_mw_str}</span>
+  <span style="color:#1B8FA8;font-weight:700;font-size:0.9rem;">{_gp*100:.0f}%</span>
+  <span style="color:#e07b39;font-weight:600;font-size:0.85rem;">{_ec:.1f}匹</span>
+</div>""", unsafe_allow_html=True)
+            with _col_btn:
+                if st.button('詳細', key=f'detail_{_idx}', use_container_width=True):
+                    _show_day_detail(
+                        sel_date=_d,
+                        sel_pred=next((p for p in _h_ai if p['date'] == _d), None),
+                        mw_row=_mw_row,
+                        h_wx=_h_wx,
+                        h_fc=_h_fc,
+                        h_tide=_h_tide,
+                        h_br=_h_br,
+                        today=_today,
+                        wdays=_WDAYS,
+                        load_ranking_fn=_load_spot_ranking,
+                        build_reasons_fn=_build_reasons,
+                        species_lift_fn=_species_lift_str,
+                    )
 
-        # 選択中の日付を見出しで表示
-        _sd_p = next((p for p in _h_ai if p['date'] == _sel_date), None)
-        if _sd_p:
-            _sd_mw = _mw_map.get(_sel_date)
-            _sd_rp = _sd_mw['risk_prob'] if _sd_mw is not None else 0.0
-            if _sd_rp >= 0.90:
-                _sd_sym, _sd_col = '✖ STOP',   '#7a1c24'
-            elif _sd_rp >= 0.75:
-                _sd_sym, _sd_col = '⚠️ CHECK', '#7a5f00'
-            else:
-                _sd_sym, _sd_col = '✅ GO',    '#1a7a4a'
-            st.markdown(
-                f'<div style="font-size:1.05rem; font-weight:700; color:{_sd_col}; margin-bottom:8px;">'
-                f'▶ {_sel_date.month}/{_sel_date.day}({_WDAYS[_sel_date.weekday()]}) — {_sd_sym}'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
     else:
         st.info('AI予測データがありません。')
-        _sel_date = _today
-
-    _sel_pred = next((p for p in _h_ai if p['date'] == _sel_date), None) if _h_ai else None
-    _go_proba  = _sel_pred.get('go_proba') if _sel_pred else None
-    _exp_count = _sel_pred.get('expected_count') if _sel_pred else None
-
-    st.markdown('---')
-
-    # ── GO / CHECK / STOP バナー ────────────────────────────────
-    _sel_mw  = _mw_map.get(_sel_date)
-    _sel_rp  = _sel_mw['risk_prob'] if _sel_mw is not None else 0.0
-    if _go_proba is not None or _sel_mw is not None:
-        if _sel_rp >= 0.90:
-            _verdict, _vc, _vbg, _vmsg = '✖ STOP',   '#7a1c24', '#f8d7da', '出船困難な可能性があります'
-        elif _sel_rp >= 0.75:
-            _verdict, _vc, _vbg, _vmsg = '⚠️ CHECK', '#7a5f00', '#fff3cd', '出船できない可能性があります。確認してください'
-        else:
-            _verdict, _vc, _vbg, _vmsg = '✅ GO',    '#1a7a4a', '#d4edda', '出船できる見込みです'
-
-        _sp_sel = _species_lift_str(_sel_pred.get('species_proba', {}), _h_br, top_n=2)
-        st.markdown(f"""
-<div style="background:{_vbg}; border-left:6px solid {_vc};
-     padding:20px 24px; border-radius:10px; margin-bottom:20px;">
-  <div style="font-size:2rem; font-weight:800; color:{_vc}; line-height:1.1;">{_verdict}</div>
-  <div style="font-size:0.95rem; color:{_vc}; margin-top:4px;">{_vmsg}</div>
-  <div style="margin-top:14px; display:flex; flex-wrap:wrap; gap:24px; color:#333;">
-    <span>推奨スコア&nbsp;<b>{_go_proba*100:.0f}%</b></span>
-    <span>期待釣果&nbsp;<b>{_exp_count:.1f}&nbsp;匹</b></span>
-    <span>注目魚種&nbsp;<b>{_sp_sel}</b></span>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-    # ── コンディション（4カード）────────────────────────────────
-    _sel_wx_row = None
-    if _h_wx is not None:
-        _wr = _h_wx[_h_wx['date'] == _sel_date]
-        _sel_wx_row = _wr.iloc[0] if not _wr.empty else None
-
-    _sel_fc_row = None
-    if _h_fc is not None:
-        _fr = _h_fc[_h_fc['date'] == _sel_date]
-        _sel_fc_row = _fr.iloc[0] if not _fr.empty else None
-
-    _sel_tide_name = None
-    _sel_rising    = _sel_pred.get('rising_ratio') if _sel_pred else None
-    if _h_tide is not None and not _h_tide.empty:
-        _tdn = _h_tide[(_h_tide['date'] == _sel_date) & _h_tide['tide_name'].notna()]
-        if not _tdn.empty:
-            _sel_tide_name = str(_tdn.iloc[0]['tide_name'])
-
-    _recent_wt = df_all[
-        df_all['date'] >= (df_all['date'].max() - pd.Timedelta(days=7))
-    ]['water_temp_avg'].mean()
-
-    # 天気: predictions.json → _h_wx の順で取得
-    _weather_raw = (_sel_pred.get('weather') if _sel_pred else None)
-    if not _weather_raw and _sel_wx_row is not None and pd.notna(_sel_wx_row.get('weather')):
-        _weather_raw = str(_sel_wx_row['weather'])
-    _weather_str = _weather_raw or '–'
-
-    # Open-Meteo の windspeed_10m_max は km/h 単位のため m/s に変換（÷ 3.6）
-    _wind_ms  = (float(_sel_pred['wind_ms_max']) / 3.6
-                 if _sel_pred and _sel_pred.get('wind_ms_max') is not None
-                    and not pd.isna(_sel_pred.get('wind_ms_max', float('nan'))) else None)
-    _wave_val = (float(_sel_fc_row['forecast_wave_height_m'])
-                 if _sel_fc_row is not None and pd.notna(_sel_fc_row.get('forecast_wave_height_m')) else None)
-    _wave_str = f"{_wave_val:.1f} m" if _wave_val is not None else '–'
-    _wt_str   = f"{_recent_wt:.1f} ℃" if pd.notna(_recent_wt) else '–'
-    _tide_str = _sel_tide_name or (_sel_pred.get('tide_name') if _sel_pred else None) or '–'
-
-    _c2CARD = (
-        "background:#fff;border-radius:12px;"
-        "padding:clamp(12px,3.5vw,18px) clamp(14px,4vw,20px);"
-        "box-shadow:0 2px 10px rgba(0,0,0,0.08);"
-    )
-    _c2CARD_L = _c2CARD + "border-left:4px solid #1B8FA8;"
-    _c2CARD_R = _c2CARD + "border-left:4px solid #22AECB;"
-    _c2LBL = "font-size:clamp(0.6rem,2vw,0.72rem);color:#6B7B8D;font-weight:600;letter-spacing:0.05em;margin-bottom:6px;"
-    _c2VAL = "font-size:clamp(1.0rem,4vw,1.35rem);color:#0B3D5C;font-weight:700;line-height:1.2;"
-    st.markdown(f"""
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(8px,2.5vw,14px);margin-bottom:16px;">
-  <div style="{_c2CARD_L}"><div style="{_c2LBL}">☁️ 天気</div>
-    <div style="{_c2VAL}">{_weather_str}</div></div>
-  <div style="{_c2CARD_L}"><div style="{_c2LBL}">🌊 波高（予報）</div>
-    <div style="{_c2VAL}">{_wave_str}</div></div>
-  <div style="{_c2CARD_R}"><div style="{_c2LBL}">🌡️ 水温（直近7日）</div>
-    <div style="{_c2VAL}">{_wt_str}</div></div>
-  <div style="{_c2CARD_R}"><div style="{_c2LBL}">🌙 潮</div>
-    <div style="{_c2VAL}">{_tide_str}</div></div>
-</div>
-""", unsafe_allow_html=True)
-
-    st.markdown('---')
-
-    # ── 見送り・推奨理由 ─────────────────────────────────────────
-    def _build_reasons(pred, wind_ms, wave_val, wt, tide_name, rising):
-        """ネガティブ・ポジティブ要因を (icon, text, is_bad) のリストで返す。"""
-        reasons = []
-
-        # 風速
-        if wind_ms is not None:
-            if wind_ms >= 15:
-                reasons.append(('🚨', f'強風 {wind_ms:.1f}m/s — 渡礁・釣行が危険な風速です', True))
-            elif wind_ms >= 10:
-                reasons.append(('⚠️', f'やや強風 {wind_ms:.1f}m/s — 仕掛けが流されやすくなります', True))
-            else:
-                reasons.append(('✅', f'風は穏やか {wind_ms:.1f}m/s — 釣りやすい条件です', False))
-
-        # 風向（predに wind_dir_deg が入っている場合）
-        if pred:
-            _wd_deg = pred.get('wind_dir_deg')
-            if _wd_deg is not None and not pd.isna(_wd_deg):
-                _wd_deg = float(_wd_deg)
-                # 串本の磯は山を背にしているため北〜北西風は影響小
-                # 南〜南東風（海側からの風）は磯に直接当たり危険
-                if 135 <= _wd_deg <= 225:
-                    reasons.append(('⚠️', f'南〜南西風（{_wd_deg:.0f}°）— 海側からの風で磯に直接当たります', True))
-                elif 270 <= _wd_deg <= 360 or _wd_deg <= 30:
-                    reasons.append(('✅', f'北〜北西風（{_wd_deg:.0f}°）— 山が背後にあり串本の磯は風の影響を受けにくい方向です', False))
-
-        # 波高
-        if wave_val is not None:
-            if wave_val >= 2.5:
-                reasons.append(('🚨', f'高波 {wave_val:.1f}m — 磯釣り困難な波高です', True))
-            elif wave_val >= 1.5:
-                reasons.append(('⚠️', f'波やや高め {wave_val:.1f}m — 荒れ気味の磯があります', True))
-            else:
-                reasons.append(('✅', f'波は穏やか {wave_val:.1f}m — 磯釣りに適した波高です', False))
-
-        # 水温
-        if wt is not None and not pd.isna(wt):
-            if wt < 14:
-                reasons.append(('⚠️', f'水温 {wt:.1f}℃ — 低すぎてグレも口を使いにくくなります', True))
-            elif wt >= 15 and wt <= 22:
-                reasons.append(('✅', f'水温 {wt:.1f}℃ — グレの適水温帯です', False))
-
-        # 潮
-        if tide_name:
-            if tide_name in ('大潮',):
-                reasons.append(('✅', f'潮は{tide_name} — 潮の動きが最も活発で好条件です', False))
-            elif tide_name in ('長潮', '若潮'):
-                reasons.append(('⚠️', f'潮は{tide_name} — 潮の動きが弱く釣果が落ちやすい時期です', True))
-
-        # 上り潮割合
-        if rising is not None and not pd.isna(rising):
-            rising = float(rising)
-            if rising >= 0.6:
-                reasons.append(('✅', f'上り潮が多い（{rising*100:.0f}%）— 朝〜昼の釣りに有利です', False))
-            elif rising <= 0.25:
-                reasons.append(('⚠️', f'上り潮が少ない（{rising*100:.0f}%）— 下り潮中心の時間帯です', True))
-
-        # 降水
-        if pred:
-            p1 = pred.get('precip_1d', 0) or 0
-            p2 = pred.get('precip_2d', 0) or 0
-            p3 = pred.get('precip_3d', 0) or 0
-            if p1 > 5 or p2 > 5 or p3 > 5:
-                reasons.append(('⚠️', f'直近に降雨あり（前日{p1:.0f}mm / 前々日{p2:.0f}mm）— 濁りが入っている可能性があります', True))
-            elif p1 == 0 and p2 == 0:
-                reasons.append(('✅', '直近3日間は無雨 — 海の状態は安定しています', False))
-
-        # 総合スコア
-        if pred:
-            gp = pred.get('go_proba', 0)
-            if gp < 0.3:
-                reasons.append(('✖', f'AI総合判定 {gp*100:.0f}% — 過去の同条件と比較してかなり悪い日です', True))
-            elif gp >= 0.6:
-                reasons.append(('✅', f'AI総合判定 {gp*100:.0f}% — 過去の同条件と比較して良い日です', False))
-
-        return reasons
-
-    _reasons = _build_reasons(
-        pred=_sel_pred,
-        wind_ms=_wind_ms,
-        wave_val=_wave_val,
-        wt=_recent_wt if pd.notna(_recent_wt) else None,
-        tide_name=_sel_tide_name,
-        rising=_sel_rising,
-    )
-
-    _bad  = [(i, t) for i, t, b in _reasons if b]
-    _good = [(i, t) for i, t, b in _reasons if not b]
-
-    _r1, _r2 = st.columns(2)
-    with _r1:
-        st.markdown('##### ⚠️ 懸念事項' if _bad else '##### ✅ 懸念事項なし')
-        if _bad:
-            for _icon, _txt in _bad:
-                st.markdown(f'{_icon} {_txt}')
-        else:
-            st.markdown('現在の予報では大きな懸念点はありません。')
-    with _r2:
-        st.markdown('##### ✅ 好条件の理由' if _good else '##### ℹ️ 好条件なし')
-        if _good:
-            for _icon, _txt in _good:
-                st.markdown(f'{_icon} {_txt}')
-        else:
-            st.markdown('この日は好条件の要素が少ない状況です。')
-
-    st.markdown('---')
-
-    # ── 磯ランキングTOP5 ＋ 魚種リフト ──────────────────────────
-    _rc, _sc = st.columns([3, 2])
-
-    with _rc:
-        st.markdown(f'##### 🏆 {_sel_date.month}/{_sel_date.day} の磯 期待度ランキング TOP5')
-        with st.spinner('計算中...'):
-            _home_rank = _load_spot_ranking(_sel_date.isoformat())
-
-        if _home_rank.empty:
-            st.info('磯ランキングデータがありません。')
-        else:
-            for _ri, _rrow in _home_rank.head(5).iterrows():
-                _rn = _ri + 1
-                _medal = {1: '🥇', 2: '🥈', 3: '🥉'}.get(_rn, f'{_rn}.')
-                st.markdown(f"""
-<div style="display:flex; align-items:center; gap:12px; padding:10px 0;
-     border-bottom:1px solid #eee;">
-  <span style="font-size:1.15rem; min-width:30px;">{_medal}</span>
-  <span style="font-weight:600; flex:1;">{_rrow['spot']}</span>
-  <span style="color:#e07b39; font-weight:700; font-size:1.05rem;">{_rrow['expected_count']:.1f} 匹</span>
-  <span style="color:#888; font-size:0.85rem; min-width:40px; text-align:right;">{_rrow['go_proba']*100:.0f}%</span>
-</div>""", unsafe_allow_html=True)
-        st.caption('詳細は「🏆 釣り場ランキング」タブへ')
-
-    with _sc:
-        st.markdown('##### 🐟 注目魚種（平均比）')
-        if _sel_pred:
-            _sp_raw   = _sel_pred.get('species_proba', {})
-            _sp_lifts = {
-                sp: p / _h_br[sp] if _h_br.get(sp, 0) > 0 else 1.0
-                for sp, p in _sp_raw.items()
-            }
-            for _sp, _lv in sorted(_sp_lifts.items(), key=lambda x: -x[1]):
-                _sc_color = '#1a7a4a' if _lv >= 1.2 else ('#7a5f00' if _lv >= 0.8 else '#999')
-                _bar_w = min(int(_lv / 2.0 * 100), 100)
-                st.markdown(f"""
-<div style="margin-bottom:10px;">
-  <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
-    <span style="font-weight:600;">{_sp}</span>
-    <span style="color:{_sc_color}; font-weight:700;">{_lv:.2f}x</span>
-  </div>
-  <div style="background:#eee; border-radius:4px; height:6px;">
-    <div style="background:{_sc_color}; width:{_bar_w}%; height:6px; border-radius:4px;"></div>
-  </div>
-</div>""", unsafe_allow_html=True)
-            st.caption('1.0x = 平均並み　2.0x = 平均の2倍釣れやすい')
-        else:
-            st.info('AIモデルが必要です。')
-
-    st.markdown('---')
 
     # ── 最近釣れ始めている魚 ─────────────────────────────────────
     st.markdown('##### 🐟 最近釣れ始めている魚')
@@ -1145,35 +1142,37 @@ with tab0:
             'それ以前の28日間と比べて1.3倍以上になっている魚種です。'
         )
 
-        _tr_cols = st.columns(min(len(_trending), 4))
-        for _ci, (_, _row) in enumerate(zip(_tr_cols, _trending.itertuples())):
-            with _tr_cols[_ci]:
-                _r_pct = _row.recent_rate * 100
-                _p_pct = _row.prev_rate  * 100
-                _ratio = _row.ratio
-                _lbl   = _row.label
-                _lbl_color = '#c0392b' if '急増' in _lbl else ('#2471a3' if '増加' in _lbl else '#1a7a4a')
-                st.markdown(f"""
-<div style="background:#FFFFFF; border-radius:12px; padding:16px 18px;
-     box-shadow:0 2px 12px rgba(0,0,0,0.07); border-top:4px solid {_lbl_color};">
-  <div style="font-size:0.78rem; font-weight:600; color:{_lbl_color};
-       letter-spacing:0.05em; margin-bottom:6px;">{_lbl}</div>
-  <div style="font-size:1.25rem; font-weight:700; color:#0B3D5C;
+        _tr_items = list(_trending.itertuples())
+        _tr_html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:8px;">'
+        for _row in _tr_items:
+            _r_pct = _row.recent_rate * 100
+            _p_pct = _row.prev_rate  * 100
+            _ratio = _row.ratio
+            _lbl   = _row.label
+            _lbl_color = '#c0392b' if '急増' in _lbl else ('#2471a3' if '増加' in _lbl else '#1a7a4a')
+            _tr_html += f"""
+<div style="background:#FFFFFF;border-radius:12px;padding:16px 18px;
+     box-shadow:0 2px 12px rgba(0,0,0,0.07);border-top:4px solid {_lbl_color};">
+  <div style="font-size:0.78rem;font-weight:600;color:{_lbl_color};
+       letter-spacing:0.05em;margin-bottom:6px;">{_lbl}</div>
+  <div style="font-size:1.25rem;font-weight:700;color:#0B3D5C;
        margin-bottom:10px;">{_row.species}</div>
-  <div style="display:flex; justify-content:space-between; font-size:0.82rem; color:#555;">
-    <span>直近</span><span style="font-weight:700; color:{_lbl_color};">{_r_pct:.0f}%</span>
+  <div style="display:flex;justify-content:space-between;font-size:0.82rem;color:#555;">
+    <span>直近</span><span style="font-weight:700;color:{_lbl_color};">{_r_pct:.0f}%</span>
   </div>
-  <div style="display:flex; justify-content:space-between; font-size:0.82rem; color:#888;">
+  <div style="display:flex;justify-content:space-between;font-size:0.82rem;color:#888;">
     <span>前期間</span><span>{_p_pct:.0f}%</span>
   </div>
-  <div style="margin-top:8px; background:#eee; border-radius:4px; height:5px; overflow:hidden;">
-    <div style="background:{_lbl_color}; width:{min(_r_pct*2, 100):.0f}%;
-         height:5px; border-radius:4px;"></div>
+  <div style="margin-top:8px;background:#eee;border-radius:4px;height:5px;overflow:hidden;">
+    <div style="background:{_lbl_color};width:{min(_r_pct*2, 100):.0f}%;
+         height:5px;border-radius:4px;"></div>
   </div>
-  <div style="margin-top:6px; font-size:0.75rem; color:#999; text-align:right;">
+  <div style="margin-top:6px;font-size:0.75rem;color:#999;text-align:right;">
     前期間比 {_ratio:.1f}x
   </div>
-</div>""", unsafe_allow_html=True)
+</div>"""
+        _tr_html += '</div>'
+        st.markdown(_tr_html, unsafe_allow_html=True)
 
     st.caption('詳細な釣行計画は「🎣 釣果予測」タブ、過去データ分析は「📊 釣果分析」タブをご利用ください。')
 
