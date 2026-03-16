@@ -306,25 +306,9 @@ hr { border-color: #D5E6EF; margin: 1.2rem 0; }
         padding: 7px 10px !important;
         font-size: 0.78rem !important;
     }
-    /* ── columns を強制横並び ── */
-    [data-testid="stHorizontalBlock"] {
-        flex-wrap: nowrap !important;
-        gap: 4px !important;
-    }
-    [data-testid="column"] {
-        min-width: 0 !important;
-        flex: 1 1 0 !important;
-    }
-    /* Metricカードの余白縮小・文字サイズ縮小 */
+    /* Metricカードの余白縮小 */
     [data-testid="metric-container"] {
-        padding: 8px 6px !important;
-    }
-    [data-testid="stMetricLabel"] {
-        font-size: 0.65rem !important;
-    }
-    [data-testid="stMetricValue"] {
-        font-size: 0.95rem !important;
-        word-break: keep-all !important;
+        padding: 10px 12px !important;
     }
     /* ボタン余白 */
     .stButton > button {
@@ -568,15 +552,29 @@ _kpi_days    = df_all['date'].dt.date.nunique()
 _kpi_spots   = df_all['spot'].nunique()
 _kpi_maxsize = df_all['size_max_cm'].max()
 
-_c1, _c2, _c3, _c4 = st.columns(4)
-with _c1:
-    st.metric('総釣果数', f'{_kpi_total:,} 匹')
-with _c2:
-    st.metric('釣行日数', f'{_kpi_days:,} 日')
-with _c3:
-    st.metric('釣り場数', f'{_kpi_spots} 磯')
-with _c4:
-    st.metric('最大サイズ', f'{_kpi_maxsize:.0f} cm' if pd.notna(_kpi_maxsize) else '―')
+_kpi_maxsize_str = f'{_kpi_maxsize:.0f}' if pd.notna(_kpi_maxsize) else '―'
+_CARD = (
+    "background:#fff;border-radius:12px;"
+    "padding:clamp(12px,3.5vw,18px) clamp(14px,4vw,20px);"
+    "box-shadow:0 2px 10px rgba(0,0,0,0.08);"
+)
+_CARD_L = _CARD + "border-left:4px solid #1B8FA8;"
+_CARD_R = _CARD + "border-left:4px solid #22AECB;"
+_LBL = "font-size:clamp(0.6rem,2vw,0.72rem);color:#6B7B8D;font-weight:600;letter-spacing:0.05em;margin-bottom:6px;"
+_VAL = "font-size:clamp(1.05rem,4.5vw,1.45rem);color:#0B3D5C;font-weight:700;line-height:1.2;"
+_UNIT = "font-size:0.65em;font-weight:500;margin-left:3px;color:#4A6070;"
+st.markdown(f"""
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(8px,2.5vw,14px);margin-bottom:20px;">
+  <div style="{_CARD_L}"><div style="{_LBL}">総釣果数</div>
+    <div style="{_VAL}">{_kpi_total:,}<span style="{_UNIT}">匹</span></div></div>
+  <div style="{_CARD_L}"><div style="{_LBL}">釣行日数</div>
+    <div style="{_VAL}">{_kpi_days:,}<span style="{_UNIT}">日</span></div></div>
+  <div style="{_CARD_R}"><div style="{_LBL}">釣り場数</div>
+    <div style="{_VAL}">{_kpi_spots}<span style="{_UNIT}">磯</span></div></div>
+  <div style="{_CARD_R}"><div style="{_LBL}">最大サイズ</div>
+    <div style="{_VAL}">{_kpi_maxsize_str}<span style="{_UNIT}">cm</span></div></div>
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown('<div style="margin-bottom:8px;"></div>', unsafe_allow_html=True)
 
@@ -950,12 +948,27 @@ with tab0:
     _wt_str   = f"{_recent_wt:.1f} ℃" if pd.notna(_recent_wt) else '–'
     _tide_str = _sel_tide_name or (_sel_pred.get('tide_name') if _sel_pred else None) or '–'
 
-    _mc1, _mc2 = st.columns(2)
-    _mc3, _mc4 = st.columns(2)
-    with _mc1: st.metric('☁️ 天気', _weather_str)
-    with _mc2: st.metric('🌊 波高（予報）', _wave_str)
-    with _mc3: st.metric('🌡️ 水温（直近7日）', _wt_str)
-    with _mc4: st.metric('🌙 潮', _tide_str)
+    _c2CARD = (
+        "background:#fff;border-radius:12px;"
+        "padding:clamp(12px,3.5vw,18px) clamp(14px,4vw,20px);"
+        "box-shadow:0 2px 10px rgba(0,0,0,0.08);"
+    )
+    _c2CARD_L = _c2CARD + "border-left:4px solid #1B8FA8;"
+    _c2CARD_R = _c2CARD + "border-left:4px solid #22AECB;"
+    _c2LBL = "font-size:clamp(0.6rem,2vw,0.72rem);color:#6B7B8D;font-weight:600;letter-spacing:0.05em;margin-bottom:6px;"
+    _c2VAL = "font-size:clamp(1.0rem,4vw,1.35rem);color:#0B3D5C;font-weight:700;line-height:1.2;"
+    st.markdown(f"""
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(8px,2.5vw,14px);margin-bottom:16px;">
+  <div style="{_c2CARD_L}"><div style="{_c2LBL}">☁️ 天気</div>
+    <div style="{_c2VAL}">{_weather_str}</div></div>
+  <div style="{_c2CARD_L}"><div style="{_c2LBL}">🌊 波高（予報）</div>
+    <div style="{_c2VAL}">{_wave_str}</div></div>
+  <div style="{_c2CARD_R}"><div style="{_c2LBL}">🌡️ 水温（直近7日）</div>
+    <div style="{_c2VAL}">{_wt_str}</div></div>
+  <div style="{_c2CARD_R}"><div style="{_c2LBL}">🌙 潮</div>
+    <div style="{_c2VAL}">{_tide_str}</div></div>
+</div>
+""", unsafe_allow_html=True)
 
     st.markdown('---')
 
