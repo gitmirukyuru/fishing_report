@@ -1237,243 +1237,6 @@ def _build_reasons(pred, wind_ms, wave_val, wt, tide_name, rising):
 
 
 # ============================================================
-# Tab 0: 釣行判断（今日 + 予測 統合）
-# ============================================================
-with tab0:
-    _today = date.today()
-    _WDAYS = '月火水木金土日'
-
-    # 地点セレクター
-    st.markdown('<p style="font-size:0.82rem;color:#4A7A95;margin-bottom:4px;font-weight:600;">地点</p>', unsafe_allow_html=True)
-    _u_loc = st.radio('', ['串本', '白浜'], horizontal=True, label_visibility='collapsed', key='u_loc')
-
-    # ── データ取得 ────────────────────────────────────────────
-    with st.spinner('データ取得中...'):
-        _u_wx     = _load_weather(_u_loc)
-        _u_tide   = _load_tide(_u_loc)
-        _u_hourly = _load_hourly()
-    _u_ai   = _load_ai_predictions(days=7)
-    _u_br   = _load_species_base_rates()
-    _u_fc   = _load_forecast_api()
-    _u_mw   = _load_morning_wind(_u_loc)
-    _u_fw   = _load_forecast_wind(_u_loc)
-
-    # 予測生成日時
-    if _PREDICTIONS_PATH.exists():
-        import json as _json
-        _gen_at = _json.loads(_PREDICTIONS_PATH.read_text(encoding='utf-8')).get('generated_at', '')
-        if _gen_at:
-            st.caption(f'AI予測更新日時: {_gen_at}')
-
-    if _u_loc == '白浜':
-        st.caption('※ 白浜の潮汐は最寄港「田辺」のデータを表示しています。')
-
-    # 風速リスクマップ
-    _u_mw_map = {}
-    if _u_fw is not None and not _u_fw.empty:
-        for _, _r in _u_fw.iterrows(): _u_mw_map[_r['date']] = _r
-    if _u_mw is not None and not _u_mw.empty:
-        for _, _r in _u_mw.iterrows(): _u_mw_map[_r['date']] = _r
-
-    # AIデータマップ
-    _u_ai_map = {p['date']: p for p in _u_ai} if _u_ai else {}
-
-    # 統合日付リスト（最大14日）
-    _u_dates = sorted(set(
-        (list(_u_wx['date'].unique()) if _u_wx is not None else []) +
-        list(_u_ai_map.keys()) +
-        (list(_u_hourly['date'].unique()) if _u_hourly is not None else [])
-    ))
-
-    def _u_wxe(s):
-        if not s: return ''
-        if '雪' in s: return '❄️'
-        if '雷' in s: return '⛈️'
-        if '雨' in s and '晴' in s: return '🌦️'
-        if '雨' in s: return '🌧️'
-        if '曇' in s and '晴' in s: return '🌤️'
-        if '曇' in s: return '☁️'
-        if '晴' in s: return '☀️'
-        return ''
-
-    def _u_stars(p):
-        n = min(3, max(0, round(float(p) * 3)))
-        return '★' * n + '☆' * (3 - n)
-
-    if _u_dates:
-        st.caption('タップすると詳細を確認できます')
-        for _uidx, _ud in enumerate(_u_dates):
-            _uwd = _WDAYS[_ud.weekday()]
-            _u_ai_p  = _u_ai_map.get(_ud)
-            _u_mw_row = _u_mw_map.get(_ud)
-
-            # 天気・気温
-            _u_wr = _u_wx[_u_wx['date'] == _ud].iloc[0] if _u_wx is not None and not _u_wx[_u_wx['date'] == _ud].empty else None
-            _u_wxe_s = _u_wxe(str(_u_wr['weather']) if _u_wr is not None and pd.notna(_u_wr.get('weather')) else '')
-            _u_tmax = int(_u_wr['temp_max']) if _u_wr is not None and pd.notna(_u_wr.get('temp_max')) else None
-            _u_tmin = int(_u_wr['temp_min']) if _u_wr is not None and pd.notna(_u_wr.get('temp_min')) else None
-            _u_temp_s = f'{_u_tmax}/{_u_tmin}℃' if _u_tmax is not None else ''
-
-            # 潮汐
-            _u_tn = _u_tide[(_u_tide['date'] == _ud) & _u_tide['tide_name'].notna()] if _u_tide is not None and not _u_tide.empty else pd.DataFrame()
-            _u_tide_s = str(_u_tn.iloc[0]['tide_name']) if not _u_tn.empty else ''
-
-            # 降水
-            _u_hd = _u_hourly[_u_hourly['date'] == _ud] if _u_hourly is not None else pd.DataFrame()
-            _u_prec = round(float(_u_hd['precipitation_mm'].sum()), 1) if not _u_hd.empty and 'precipitation_mm' in _u_hd.columns else None
-
-            # 出船判断
-            if _u_mw_row is not None:
-                _u_mw_spd  = _u_mw_row['wind_max_ms']
-                _u_mw_prob = _u_mw_row['risk_prob']
-                if _u_mw_prob >= 0.90:
-                    _u_vs = '✖ STOP'; _u_mw_str = f'休船大 {int(_u_mw_spd)}m/s'
-                elif _u_mw_prob >= 0.75:
-                    _u_vs = '⚠ CHECK'; _u_mw_str = f'要確認 {int(_u_mw_spd)}m/s'
-                else:
-                    _u_vs = '✅ GO'; _u_mw_str = f'出船可 {int(_u_mw_spd)}m/s'
-            elif _u_ai_p is not None:
-                _u_vs = '✅ GO'; _u_mw_spd = None; _u_mw_str = ''
-            else:
-                _u_vs = None; _u_mw_spd = None; _u_mw_str = ''
-
-            # AI釣果
-            _u_gp = _u_ai_p.get('go_proba', 0) if _u_ai_p else None
-            _u_ec = _u_ai_p.get('expected_count', 0) if _u_ai_p else None
-            _u_star_s = _u_stars(_u_gp) if _u_gp is not None else ''
-
-            # カード色クラス
-            _u_drm = 'drm-stop' if _u_vs and '✖' in _u_vs else ('drm-check' if _u_vs and '⚠' in _u_vs else 'drm-go')
-            _u_drm_today = 'drm-today' if _ud == _today else ''
-
-            # 潮汐（満潮・干潮時刻）
-            _u_td = _u_tide[_u_tide['date'] == _ud] if _u_tide is not None and not _u_tide.empty else pd.DataFrame()
-            _u_tide_name = str(_u_td['tide_name'].dropna().iloc[0]) if not _u_td.empty and _u_td['tide_name'].notna().any() else ''
-            _u_hi = _u_td[_u_td['type'] == '満潮'].sort_values('time')['time'].tolist() if not _u_td.empty else []
-            _u_lo = _u_td[_u_td['type'] == '干潮'].sort_values('time')['time'].tolist() if not _u_td.empty else []
-            _u_hi_s = '  '.join(_u_hi[:2]) if _u_hi else ''
-            _u_lo_s = '  '.join(_u_lo[:2]) if _u_lo else ''
-
-            # カード上段: 潮型＋気温
-            _top_parts = [p for p in [_u_tide_name, _u_temp_s] if p]
-            _card_top = '　'.join(_top_parts) if _top_parts else (_u_wxe_s or '--')
-
-            # カード下段1行目: 天気・風
-            _r1_parts = [p for p in [_u_wxe_s, (f'🌬 {int(_u_mw_spd)}m/s' if _u_mw_spd is not None else ''), (f'☔ {_u_prec}mm' if _u_prec and _u_prec > 0 else '')] if p]
-            _card_r1 = '　'.join(_r1_parts)
-
-            # カード下段2行目: 潮汐時刻
-            _r2_parts = [p for p in [(f'満 {_u_hi_s}' if _u_hi_s else ''), (f'干 {_u_lo_s}' if _u_lo_s else '')] if p]
-            _card_r2 = '　'.join(_r2_parts)
-
-            # 左カラム
-            _star_disp  = _u_star_s if _u_star_s else '---'
-            _count_disp = f'{_u_ec:.1f}匹' if _u_ec is not None else '--'
-            _today_badge = '<span class="dcard-today-badge">今日</span>' if _ud == _today else ''
-
-            # 出船ストリップ
-            if _u_vs:
-                _dep_sym = '○' if 'GO' in _u_vs else ('△' if '⚠' in _u_vs else '✕')
-                _dep_html = f'<div class="dcard-dep">出船{_dep_sym}</div>'
-            else:
-                _dep_html = ''
-
-            # HTMLカード組み立て
-            _card_html = (
-                f'<div class="dcard-wrap {_u_drm} {_u_drm_today}">'
-                f'<div class="dcard-l">'
-                f'<div class="dcard-stars">{_star_disp}</div>'
-                f'<div class="dcard-count">{_count_disp}</div>'
-                f'<div class="dcard-date">{_ud.month}/{_ud.day}<br><span class="dcard-wd">（{_uwd}）</span></div>'
-                f'{_today_badge}'
-                f'</div>'
-                f'<div class="dcard-r">'
-                f'<div class="dcard-top">{_card_top}</div>'
-                f'<div class="dcard-bot">'
-                f'<div class="dcard-conds">'
-                f'<div class="dcard-conds-r1">{_card_r1}</div>'
-                f'<div class="dcard-conds-r2">{_card_r2}</div>'
-                f'</div>'
-                f'{_dep_html}'
-                f'</div>'
-                f'</div>'
-                f'</div>'
-            )
-            # カスタムコンポーネント: カード全体がクリッカブル
-            from components.clickable_card import clickable_card
-            if clickable_card(_card_html, key=f'card_{_uidx}'):
-                if _u_ai_p is not None:
-                    _show_day_detail(
-                        sel_date=_ud, sel_pred=_u_ai_p, mw_row=_u_mw_row,
-                        h_wx=_u_wx, h_fc=_u_fc,
-                        h_tide=_u_tide, h_br=_u_br,
-                        today=_today, wdays=_WDAYS,
-                        load_ranking_fn=_load_spot_ranking,
-                        build_reasons_fn=_build_reasons,
-                        species_lift_fn=_species_lift_str,
-                        hourly_df=_u_hourly,
-                    )
-                else:
-                    _show_tab1_detail(
-                        sel_date=_ud, wx_df=_u_wx, tide_df=_u_tide,
-                        hourly_df=_u_hourly, ai_preds=_u_ai or [],
-                        base_rates=_u_br, df_all_data=df_all,
-                        location=_u_loc, wdays=_WDAYS,
-                        prompt_builder_mod=prompt_builder,
-                    )
-    else:
-        st.info('データを取得できませんでした。')
-
-    # ── 最近釣れ始めている魚 ─────────────────────────────────────
-    st.markdown('---')
-    st.markdown('##### 🐟 最近釣れ始めている魚')
-
-    _trending = _load_trending_species()
-
-    if _trending.empty:
-        st.info('直近のデータから急増している魚種は検出されませんでした。')
-    else:
-        _ref_start = _trending.iloc[0]['recent_start']
-        _ref_days  = _trending.iloc[0]['recent_days']
-        st.caption(
-            f'直近{_ref_days}日間（{_ref_start.month}/{_ref_start.day}〜）の出現率が'
-            'それ以前の28日間と比べて1.3倍以上になっている魚種です。'
-        )
-
-        _tr_items = list(_trending.itertuples())
-        _tr_html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:8px;">'
-        for _row in _tr_items:
-            _r_pct = _row.recent_rate * 100
-            _p_pct = _row.prev_rate  * 100
-            _ratio = _row.ratio
-            _lbl   = _row.label
-            _lbl_color = '#c0392b' if '急増' in _lbl else ('#2471a3' if '増加' in _lbl else '#1a7a4a')
-            _tr_html += f"""
-<div style="background:#FFFFFF;border-radius:12px;padding:16px 18px;
-     box-shadow:0 2px 12px rgba(0,0,0,0.07);border-top:4px solid {_lbl_color};">
-  <div style="font-size:0.78rem;font-weight:600;color:{_lbl_color};
-       letter-spacing:0.05em;margin-bottom:6px;">{_lbl}</div>
-  <div style="font-size:1.25rem;font-weight:700;color:#0B3D5C;
-       margin-bottom:10px;">{_row.species}</div>
-  <div style="display:flex;justify-content:space-between;font-size:0.82rem;color:#555;">
-    <span>直近</span><span style="font-weight:700;color:{_lbl_color};">{_r_pct:.0f}%</span>
-  </div>
-  <div style="display:flex;justify-content:space-between;font-size:0.82rem;color:#888;">
-    <span>前期間</span><span>{_p_pct:.0f}%</span>
-  </div>
-  <div style="margin-top:8px;background:#eee;border-radius:4px;height:5px;overflow:hidden;">
-    <div style="background:{_lbl_color};width:{min(_r_pct*2, 100):.0f}%;
-         height:5px;border-radius:4px;"></div>
-  </div>
-  <div style="margin-top:6px;font-size:0.75rem;color:#999;text-align:right;">
-    前期間比 {_ratio:.1f}x
-  </div>
-</div>"""
-        _tr_html += '</div>'
-        st.markdown(_tr_html, unsafe_allow_html=True)
-
-
-# ============================================================
 # Tab 1: 釣果予測 — 詳細ダイアログ
 # ============================================================
 
@@ -1721,6 +1484,244 @@ def _show_tab1_detail(sel_date, wx_df, tide_df, hourly_df, ai_preds,
             )
             st.text_area('プロンプト（コピーして claude.ai に貼り付け）', value=prompt_txt, height=260, key=f'dlg_prompt_{d}')
             st.caption('上のテキストをコピーして https://claude.ai に貼り付けてください。')
+
+
+# ============================================================
+# Tab 0: 釣行判断（今日 + 予測 統合）
+# ============================================================
+with tab0:
+    _today = date.today()
+    _WDAYS = '月火水木金土日'
+
+    # 地点セレクター
+    st.markdown('<p style="font-size:0.82rem;color:#4A7A95;margin-bottom:4px;font-weight:600;">地点</p>', unsafe_allow_html=True)
+    _u_loc = st.radio('', ['串本', '白浜'], horizontal=True, label_visibility='collapsed', key='u_loc')
+
+    # ── データ取得 ────────────────────────────────────────────
+    with st.spinner('データ取得中...'):
+        _u_wx     = _load_weather(_u_loc)
+        _u_tide   = _load_tide(_u_loc)
+        _u_hourly = _load_hourly()
+    _u_ai   = _load_ai_predictions(days=7)
+    _u_br   = _load_species_base_rates()
+    _u_fc   = _load_forecast_api()
+    _u_mw   = _load_morning_wind(_u_loc)
+    _u_fw   = _load_forecast_wind(_u_loc)
+
+    # 予測生成日時
+    if _PREDICTIONS_PATH.exists():
+        import json as _json
+        _gen_at = _json.loads(_PREDICTIONS_PATH.read_text(encoding='utf-8')).get('generated_at', '')
+        if _gen_at:
+            st.caption(f'AI予測更新日時: {_gen_at}')
+
+    if _u_loc == '白浜':
+        st.caption('※ 白浜の潮汐は最寄港「田辺」のデータを表示しています。')
+
+    # 風速リスクマップ
+    _u_mw_map = {}
+    if _u_fw is not None and not _u_fw.empty:
+        for _, _r in _u_fw.iterrows(): _u_mw_map[_r['date']] = _r
+    if _u_mw is not None and not _u_mw.empty:
+        for _, _r in _u_mw.iterrows(): _u_mw_map[_r['date']] = _r
+
+    # AIデータマップ
+    _u_ai_map = {p['date']: p for p in _u_ai} if _u_ai else {}
+
+    # 統合日付リスト（最大14日）
+    _u_dates = sorted(set(
+        (list(_u_wx['date'].unique()) if _u_wx is not None else []) +
+        list(_u_ai_map.keys()) +
+        (list(_u_hourly['date'].unique()) if _u_hourly is not None else [])
+    ))
+
+    def _u_wxe(s):
+        if not s: return ''
+        if '雪' in s: return '❄️'
+        if '雷' in s: return '⛈️'
+        if '雨' in s and '晴' in s: return '🌦️'
+        if '雨' in s: return '🌧️'
+        if '曇' in s and '晴' in s: return '🌤️'
+        if '曇' in s: return '☁️'
+        if '晴' in s: return '☀️'
+        return ''
+
+    def _u_stars(p):
+        n = min(3, max(0, round(float(p) * 3)))
+        return '★' * n + '☆' * (3 - n)
+
+    if _u_dates:
+        st.caption('タップすると詳細を確認できます')
+        for _uidx, _ud in enumerate(_u_dates):
+            _uwd = _WDAYS[_ud.weekday()]
+            _u_ai_p  = _u_ai_map.get(_ud)
+            _u_mw_row = _u_mw_map.get(_ud)
+
+            # 天気・気温
+            _u_wr = _u_wx[_u_wx['date'] == _ud].iloc[0] if _u_wx is not None and not _u_wx[_u_wx['date'] == _ud].empty else None
+            _u_wxe_s = _u_wxe(str(_u_wr['weather']) if _u_wr is not None and pd.notna(_u_wr.get('weather')) else '')
+            _u_tmax = int(_u_wr['temp_max']) if _u_wr is not None and pd.notna(_u_wr.get('temp_max')) else None
+            _u_tmin = int(_u_wr['temp_min']) if _u_wr is not None and pd.notna(_u_wr.get('temp_min')) else None
+            _u_temp_s = f'{_u_tmax}/{_u_tmin}℃' if _u_tmax is not None else ''
+
+            # 潮汐
+            _u_tn = _u_tide[(_u_tide['date'] == _ud) & _u_tide['tide_name'].notna()] if _u_tide is not None and not _u_tide.empty else pd.DataFrame()
+            _u_tide_s = str(_u_tn.iloc[0]['tide_name']) if not _u_tn.empty else ''
+
+            # 降水
+            _u_hd = _u_hourly[_u_hourly['date'] == _ud] if _u_hourly is not None else pd.DataFrame()
+            _u_prec = round(float(_u_hd['precipitation_mm'].sum()), 1) if not _u_hd.empty and 'precipitation_mm' in _u_hd.columns else None
+
+            # 出船判断
+            if _u_mw_row is not None:
+                _u_mw_spd  = _u_mw_row['wind_max_ms']
+                _u_mw_prob = _u_mw_row['risk_prob']
+                if _u_mw_prob >= 0.90:
+                    _u_vs = '✖ STOP'; _u_mw_str = f'休船大 {int(_u_mw_spd)}m/s'
+                elif _u_mw_prob >= 0.75:
+                    _u_vs = '⚠ CHECK'; _u_mw_str = f'要確認 {int(_u_mw_spd)}m/s'
+                else:
+                    _u_vs = '✅ GO'; _u_mw_str = f'出船可 {int(_u_mw_spd)}m/s'
+            elif _u_ai_p is not None:
+                _u_vs = '✅ GO'; _u_mw_spd = None; _u_mw_str = ''
+            else:
+                _u_vs = None; _u_mw_spd = None; _u_mw_str = ''
+
+            # AI釣果
+            _u_gp = _u_ai_p.get('go_proba', 0) if _u_ai_p else None
+            _u_ec = _u_ai_p.get('expected_count', 0) if _u_ai_p else None
+            _u_star_s = _u_stars(_u_gp) if _u_gp is not None else ''
+
+            # カード色クラス
+            _u_drm = 'drm-stop' if _u_vs and '✖' in _u_vs else ('drm-check' if _u_vs and '⚠' in _u_vs else 'drm-go')
+            _u_drm_today = 'drm-today' if _ud == _today else ''
+
+            # 潮汐（満潮・干潮時刻）
+            _u_td = _u_tide[_u_tide['date'] == _ud] if _u_tide is not None and not _u_tide.empty else pd.DataFrame()
+            _u_tide_name = str(_u_td['tide_name'].dropna().iloc[0]) if not _u_td.empty and _u_td['tide_name'].notna().any() else ''
+            _u_hi = _u_td[_u_td['type'] == '満潮'].sort_values('time')['time'].tolist() if not _u_td.empty else []
+            _u_lo = _u_td[_u_td['type'] == '干潮'].sort_values('time')['time'].tolist() if not _u_td.empty else []
+            _u_hi_s = '  '.join(_u_hi[:2]) if _u_hi else ''
+            _u_lo_s = '  '.join(_u_lo[:2]) if _u_lo else ''
+
+            # カード上段: 潮型＋気温
+            _top_parts = [p for p in [_u_tide_name, _u_temp_s] if p]
+            _card_top = '　'.join(_top_parts) if _top_parts else (_u_wxe_s or '--')
+
+            # カード下段1行目: 天気・風
+            _r1_parts = [p for p in [_u_wxe_s, (f'🌬 {int(_u_mw_spd)}m/s' if _u_mw_spd is not None else ''), (f'☔ {_u_prec}mm' if _u_prec and _u_prec > 0 else '')] if p]
+            _card_r1 = '　'.join(_r1_parts)
+
+            # カード下段2行目: 潮汐時刻
+            _r2_parts = [p for p in [(f'満 {_u_hi_s}' if _u_hi_s else ''), (f'干 {_u_lo_s}' if _u_lo_s else '')] if p]
+            _card_r2 = '　'.join(_r2_parts)
+
+            # 左カラム
+            _star_disp  = _u_star_s if _u_star_s else '---'
+            _count_disp = f'{_u_ec:.1f}匹' if _u_ec is not None else '--'
+            _today_badge = '<span class="dcard-today-badge">今日</span>' if _ud == _today else ''
+
+            # 出船ストリップ
+            if _u_vs:
+                _dep_sym = '○' if 'GO' in _u_vs else ('△' if '⚠' in _u_vs else '✕')
+                _dep_html = f'<div class="dcard-dep">出船{_dep_sym}</div>'
+            else:
+                _dep_html = ''
+
+            # HTMLカード組み立て
+            _card_html = (
+                f'<div class="dcard-wrap {_u_drm} {_u_drm_today}">'
+                f'<div class="dcard-l">'
+                f'<div class="dcard-stars">{_star_disp}</div>'
+                f'<div class="dcard-count">{_count_disp}</div>'
+                f'<div class="dcard-date">{_ud.month}/{_ud.day}<br><span class="dcard-wd">（{_uwd}）</span></div>'
+                f'{_today_badge}'
+                f'</div>'
+                f'<div class="dcard-r">'
+                f'<div class="dcard-top">{_card_top}</div>'
+                f'<div class="dcard-bot">'
+                f'<div class="dcard-conds">'
+                f'<div class="dcard-conds-r1">{_card_r1}</div>'
+                f'<div class="dcard-conds-r2">{_card_r2}</div>'
+                f'</div>'
+                f'{_dep_html}'
+                f'</div>'
+                f'</div>'
+                f'</div>'
+            )
+            # カスタムコンポーネント: カード全体がクリッカブル
+            from components.clickable_card import clickable_card
+            if clickable_card(_card_html, key=f'card_{_uidx}'):
+                if _u_ai_p is not None:
+                    _show_day_detail(
+                        sel_date=_ud, sel_pred=_u_ai_p, mw_row=_u_mw_row,
+                        h_wx=_u_wx, h_fc=_u_fc,
+                        h_tide=_u_tide, h_br=_u_br,
+                        today=_today, wdays=_WDAYS,
+                        load_ranking_fn=_load_spot_ranking,
+                        build_reasons_fn=_build_reasons,
+                        species_lift_fn=_species_lift_str,
+                        hourly_df=_u_hourly,
+                    )
+                else:
+                    _show_tab1_detail(
+                        sel_date=_ud, wx_df=_u_wx, tide_df=_u_tide,
+                        hourly_df=_u_hourly, ai_preds=_u_ai or [],
+                        base_rates=_u_br, df_all_data=df_all,
+                        location=_u_loc, wdays=_WDAYS,
+                        prompt_builder_mod=prompt_builder,
+                    )
+    else:
+        st.info('データを取得できませんでした。')
+
+    # ── 最近釣れ始めている魚 ─────────────────────────────────────
+    st.markdown('---')
+    st.markdown('##### 🐟 最近釣れ始めている魚')
+
+    _trending = _load_trending_species()
+
+    if _trending.empty:
+        st.info('直近のデータから急増している魚種は検出されませんでした。')
+    else:
+        _ref_start = _trending.iloc[0]['recent_start']
+        _ref_days  = _trending.iloc[0]['recent_days']
+        st.caption(
+            f'直近{_ref_days}日間（{_ref_start.month}/{_ref_start.day}〜）の出現率が'
+            'それ以前の28日間と比べて1.3倍以上になっている魚種です。'
+        )
+
+        _tr_items = list(_trending.itertuples())
+        _tr_html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:8px;">'
+        for _row in _tr_items:
+            _r_pct = _row.recent_rate * 100
+            _p_pct = _row.prev_rate  * 100
+            _ratio = _row.ratio
+            _lbl   = _row.label
+            _lbl_color = '#c0392b' if '急増' in _lbl else ('#2471a3' if '増加' in _lbl else '#1a7a4a')
+            _tr_html += f"""
+<div style="background:#FFFFFF;border-radius:12px;padding:16px 18px;
+     box-shadow:0 2px 12px rgba(0,0,0,0.07);border-top:4px solid {_lbl_color};">
+  <div style="font-size:0.78rem;font-weight:600;color:{_lbl_color};
+       letter-spacing:0.05em;margin-bottom:6px;">{_lbl}</div>
+  <div style="font-size:1.25rem;font-weight:700;color:#0B3D5C;
+       margin-bottom:10px;">{_row.species}</div>
+  <div style="display:flex;justify-content:space-between;font-size:0.82rem;color:#555;">
+    <span>直近</span><span style="font-weight:700;color:{_lbl_color};">{_r_pct:.0f}%</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;font-size:0.82rem;color:#888;">
+    <span>前期間</span><span>{_p_pct:.0f}%</span>
+  </div>
+  <div style="margin-top:8px;background:#eee;border-radius:4px;height:5px;overflow:hidden;">
+    <div style="background:{_lbl_color};width:{min(_r_pct*2, 100):.0f}%;
+         height:5px;border-radius:4px;"></div>
+  </div>
+  <div style="margin-top:6px;font-size:0.75rem;color:#999;text-align:right;">
+    前期間比 {_ratio:.1f}x
+  </div>
+</div>"""
+        _tr_html += '</div>'
+        st.markdown(_tr_html, unsafe_allow_html=True)
+
 
 
 # ============================================================
