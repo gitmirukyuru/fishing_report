@@ -355,59 +355,88 @@ hr { border-color: #D5E6EF; margin: 1.2rem 0; }
     }
 }
 
-/* ── コンパクトカード（stButtonグローバルCSS上書き用 — 必ずこのブロックを末尾に置く）── */
+/* ══════════════════════════════════════════════════
+   日別判断カード（stButtonグローバルCSS上書き — 末尾必須）
+   設計思想:
+     1行目（判断層）: GO/STOP + 日付 + 釣果 + ★  → bold・大きめ
+     2行目（文脈層）: 天気 + 潮 + 風              → muted・小さめ
+   ══════════════════════════════════════════════════ */
+
+/* ベース */
 [data-testid="element-container"]:has(.day-row-marker) + [data-testid="element-container"] button {
-    background: #fff !important;
+    background: #f8fafb !important;
     background-image: none !important;
-    border: none !important;
-    border-left: 4px solid #1B8FA8 !important;
+    border: 1px solid #e2eaef !important;
+    border-left: 5px solid #1B8FA8 !important;
     border-radius: 10px !important;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.06) !important;
-    padding: 7px 12px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+    padding: 8px 14px 7px !important;
     text-align: left !important;
     white-space: pre-line !important;
-    font-size: 0.82rem !important;
-    line-height: 1.45 !important;
-    color: #0B3D5C !important;
+    /* 1行目: 判断層 — フォントサイズは::first-lineで上書き */
+    font-size: 0.78rem !important;
+    font-weight: 400 !important;
+    line-height: 1.55 !important;
+    color: #4A6275 !important;
     min-height: auto !important;
     letter-spacing: 0 !important;
     transform: none !important;
     width: 100% !important;
+    transition: box-shadow 0.12s, background 0.12s !important;
+}
+/* 1行目（判断層）を太く・大きく・濃く */
+[data-testid="element-container"]:has(.day-row-marker) + [data-testid="element-container"] button::first-line {
+    font-size: 0.90rem !important;
+    font-weight: 700 !important;
+    color: #0B3D5C !important;
+    letter-spacing: 0.01em !important;
 }
 [data-testid="element-container"]:has(.day-row-marker) + [data-testid="element-container"] button:hover {
-    box-shadow: 0 3px 10px rgba(27,143,168,0.13) !important;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.10) !important;
+    background: #f0f6fa !important;
     transform: none !important;
 }
+
+/* GO: 緑 */
 [data-testid="element-container"]:has(.drm-go) + [data-testid="element-container"] button {
     border-left-color: #1a7a4a !important;
-    background: #f4fbf6 !important;
+    border-color: #c8e8d5 !important;
+    border-left-color: #1a7a4a !important;
+    background: #f3fbf6 !important;
     background-image: none !important;
-    color: #0B3D5C !important;
 }
+/* CHECK: 琥珀 */
 [data-testid="element-container"]:has(.drm-check) + [data-testid="element-container"] button {
     border-left-color: #b07d00 !important;
-    background: #fffbe6 !important;
+    border-color: #e8ddb0 !important;
+    border-left-color: #b07d00 !important;
+    background: #fdfbf0 !important;
     background-image: none !important;
-    color: #0B3D5C !important;
 }
+/* STOP: 赤 */
 [data-testid="element-container"]:has(.drm-stop) + [data-testid="element-container"] button {
     border-left-color: #c0392b !important;
-    background: #fdf0f0 !important;
+    border-color: #f0cfc8 !important;
+    border-left-color: #c0392b !important;
+    background: #fdf6f5 !important;
     background-image: none !important;
-    color: #0B3D5C !important;
 }
+/* TODAY: オレンジ */
 [data-testid="element-container"]:has(.drm-today) + [data-testid="element-container"] button {
-    border-left-color: #e07b00 !important;
-    background: #FFFBE8 !important;
+    border-left-color: #d4700a !important;
+    border-color: #f0e0b8 !important;
+    border-left-color: #d4700a !important;
+    background: #fffdf0 !important;
     background-image: none !important;
-    color: #0B3D5C !important;
+    box-shadow: 0 2px 8px rgba(212,112,10,0.12) !important;
 }
+
 /* カード間の余白を詰める */
 [data-testid="element-container"]:has(.day-row-marker) {
     margin-bottom: 0 !important; padding-bottom: 0 !important;
 }
 [data-testid="element-container"]:has(.day-row-marker) + [data-testid="element-container"] {
-    margin-top: 0 !important; padding-top: 0 !important; margin-bottom: 4px !important;
+    margin-top: 0 !important; padding-top: 0 !important; margin-bottom: 5px !important;
 }
 
 /* ── 地点セグメントコントロール ── */
@@ -1254,9 +1283,17 @@ with tab0:
 
             _drm_cls = 'drm-stop' if '✖' in _vs else ('drm-check' if '⚠' in _vs else 'drm-go')
             _drm_today_cls = ' drm-today' if _d == _today else ''
-            _line1 = f"{_vs}  {_d.month}/{_d.day}({_wd})  {_today_mark}{_wx_e} {_temp_s}  {_tide_s}"
-            _line2 = f"  {_mw_str}  {_star_s} {_gp*100:.0f}%  期待{_ec:.1f}匹"
-            _btn_label = f"{_line1}\n{_line2}"
+            _today_mark = '今日 ' if _d == _today else ''
+            # 判断層（1行目）: 出船可否 | 日付 | 釣果匹数 | ★評価
+            _line1 = f"{_vs}  {_d.month}/{_d.day}({_wd}) {_today_mark}  🎣 {_ec:.1f}匹  {_star_s}"
+            # 文脈層（2行目）: 天気 | 気温 | 潮 | 風  ← 補足情報・小さめ表示
+            _parts2 = []
+            if _wx_e and _temp_s: _parts2.append(f'{_wx_e}{_temp_s}')
+            elif _temp_s:          _parts2.append(f'🌡{_temp_s}')
+            if _tide_s:            _parts2.append(f'🌊{_tide_s}')
+            if _mw_row is not None: _parts2.append(f'🌬{int(_mw_spd)}m/s')
+            _line2 = '  ' + '   '.join(_parts2) if _parts2 else ''
+            _btn_label = f"{_line1}\n{_line2}" if _line2 else _line1
             st.markdown(f'<span class="day-row-marker {_drm_cls}{_drm_today_cls}"></span>', unsafe_allow_html=True)
             if st.button(_btn_label, key=f'detail_{_idx}', use_container_width=True):
                     _show_day_detail(
@@ -1637,22 +1674,20 @@ with tab1:
             _wd_str = _t1_wdays[_td.weekday()]
             _dstr = f"{_td.month}/{_td.day}（{_wd_str}）" + (" ⭐今日" if _is_today_t1 else "")
 
-            _tmax_h = f'<span style="color:#e74c3c;font-weight:700;">{int(_tmax_v)}℃</span>' if _tmax_v is not None else ''
-            _tmin_h = f'<span style="color:#3498db;">{int(_tmin_v)}℃</span>' if _tmin_v is not None else ''
-            _temp_h = f'{_tmax_h} / {_tmin_h}' if _tmax_h or _tmin_h else '–'
-            _prec_h = f'☔ {_prec_v}mm' if _prec_v is not None else ''
-            _tide_h = f'🌙 {_tide_n}' if _tide_n else ''
-            _ai_badge = '<span style="background:#1B8FA8;color:#fff;border-radius:4px;padding:1px 6px;font-size:0.7rem;margin-left:4px;">AI</span>' if _has_ai else ''
-
-            _row_bg = '#FFFBE8' if _is_today_t1 else '#fff'
-            _row_bl = '#e07b00' if _is_today_t1 else '#1B8FA8'
-
-            _tmax_b = f"{int(_tmax_v)}℃" if _tmax_v is not None else "–"
-            _tmin_b = f"{int(_tmin_v)}℃" if _tmin_v is not None else "–"
-            _prec_b = f"☔{_prec_v}mm" if _prec_v is not None else ""
-            _tide_b = f"🌙{_tide_n}" if _tide_n else ""
-            _ai_b = "  🤖AI" if _has_ai else ""
-            _btn_t1 = f"{_wxe_t1(_wx_str)} {_dstr}{_ai_b}\n{_tmax_b} / {_tmin_b}  {_prec_b}  {_tide_b}"
+            # Tab1カード: 判断層 / 文脈層
+            _wx_e_t1 = _wxe_t1(_wx_str)
+            _today_lbl = '今日 ' if _is_today_t1 else ''
+            _ai_lbl = '  AI✓' if _has_ai else ''
+            _tmax_b = f"{int(_tmax_v)}" if _tmax_v is not None else "–"
+            _tmin_b = f"{int(_tmin_v)}" if _tmin_v is not None else "–"
+            # 判断層: 天気アイコン + 日付 + 気温
+            _btn_t1_l1 = f"{_wx_e_t1}  {_td.month}/{_td.day}({_t1_wdays[_td.weekday()]}) {_today_lbl}  🌡{_tmax_b}/{_tmin_b}℃{_ai_lbl}"
+            # 文脈層: 潮 + 降水
+            _t1_parts2 = []
+            if _tide_n:   _t1_parts2.append(f'🌊{_tide_n}')
+            if _prec_v is not None and _prec_v > 0: _t1_parts2.append(f'☔{_prec_v}mm')
+            _btn_t1_l2 = '  ' + '   '.join(_t1_parts2) if _t1_parts2 else ''
+            _btn_t1 = f"{_btn_t1_l1}\n{_btn_t1_l2}" if _btn_t1_l2 else _btn_t1_l1
             _drm_t1 = 'drm-today' if _is_today_t1 else ''
             st.markdown(f'<span class="day-row-marker {_drm_t1}"></span>', unsafe_allow_html=True)
             if st.button(_btn_t1, key=f't1_detail_{_ti}', use_container_width=True):
