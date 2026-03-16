@@ -354,6 +354,88 @@ hr { border-color: #D5E6EF; margin: 1.2rem 0; }
         font-size: 0.82rem !important;
     }
 }
+
+/* ── コンパクトカード（stButtonグローバルCSS上書き用 — 必ずこのブロックを末尾に置く）── */
+[data-testid="element-container"]:has(.day-row-marker) + [data-testid="element-container"] button {
+    background: #fff !important;
+    background-image: none !important;
+    border: none !important;
+    border-left: 4px solid #1B8FA8 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06) !important;
+    padding: 7px 12px !important;
+    text-align: left !important;
+    white-space: pre-line !important;
+    font-size: 0.82rem !important;
+    line-height: 1.45 !important;
+    color: #0B3D5C !important;
+    min-height: auto !important;
+    letter-spacing: 0 !important;
+    transform: none !important;
+    width: 100% !important;
+}
+[data-testid="element-container"]:has(.day-row-marker) + [data-testid="element-container"] button:hover {
+    box-shadow: 0 3px 10px rgba(27,143,168,0.13) !important;
+    transform: none !important;
+}
+[data-testid="element-container"]:has(.drm-go) + [data-testid="element-container"] button {
+    border-left-color: #1a7a4a !important;
+    background: #f4fbf6 !important;
+    background-image: none !important;
+    color: #0B3D5C !important;
+}
+[data-testid="element-container"]:has(.drm-check) + [data-testid="element-container"] button {
+    border-left-color: #b07d00 !important;
+    background: #fffbe6 !important;
+    background-image: none !important;
+    color: #0B3D5C !important;
+}
+[data-testid="element-container"]:has(.drm-stop) + [data-testid="element-container"] button {
+    border-left-color: #c0392b !important;
+    background: #fdf0f0 !important;
+    background-image: none !important;
+    color: #0B3D5C !important;
+}
+[data-testid="element-container"]:has(.drm-today) + [data-testid="element-container"] button {
+    border-left-color: #e07b00 !important;
+    background: #FFFBE8 !important;
+    background-image: none !important;
+    color: #0B3D5C !important;
+}
+/* カード間の余白を詰める */
+[data-testid="element-container"]:has(.day-row-marker) {
+    margin-bottom: 0 !important; padding-bottom: 0 !important;
+}
+[data-testid="element-container"]:has(.day-row-marker) + [data-testid="element-container"] {
+    margin-top: 0 !important; padding-top: 0 !important; margin-bottom: 4px !important;
+}
+
+/* ── 地点セグメントコントロール ── */
+[data-testid="stRadio"] > div {
+    background: #EEF5FA;
+    border-radius: 10px;
+    padding: 4px 6px;
+    border: 1.5px solid #A8C8DC;
+    display: inline-flex;
+    gap: 4px;
+    flex-wrap: nowrap;
+}
+[data-testid="stRadio"] label {
+    font-weight: 500 !important;
+    font-size: 0.88rem !important;
+    padding: 4px 14px !important;
+    border-radius: 7px !important;
+    cursor: pointer !important;
+    color: #4A7A95 !important;
+}
+
+/* ── タブ：モバイルで絵文字なしショート表示 ── */
+@media (max-width: 480px) {
+    .stTabs [data-baseweb="tab"] {
+        padding: 6px 8px !important;
+        font-size: 0.74rem !important;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -620,13 +702,11 @@ st.markdown('<div style="margin-bottom:8px;"></div>', unsafe_allow_html=True)
 # タブ構成
 # ---------------------------------------------------------------------------
 
-tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    '🏠 今日の判断',
-    '🎣 釣果予測',
-    '📊 釣果分析',
-    '🏆 釣り場ランキング',
-    '📅 月別・季節別',
-    '🌊 波高・天候条件',
+tab0, tab1, tab2, tab3 = st.tabs([
+    '🏠 今日',
+    '🎣 予測',
+    '📊 分析',
+    '🏆 磯ランキング',
 ])
 
 
@@ -1123,8 +1203,22 @@ with tab0:
             for _, _mwr in _h_mw.iterrows():
                 _mw_map[_mwr['date']] = _mwr  # 上書き（より精度高い）
 
-        # ── 7日間リスト（各行に詳細ボタン）────────────────────────
-        st.caption('「詳細」をタップすると条件・磯ランキングを確認できます')
+        def _wxemoji(s):
+            if not s: return ''
+            if '雪' in s: return '❄️'
+            if '雷' in s: return '⛈️'
+            if '雨' in s and '晴' in s: return '🌦️'
+            if '雨' in s: return '🌧️'
+            if '曇' in s and '晴' in s: return '🌤️'
+            if '曇' in s: return '☁️'
+            if '晴' in s: return '☀️'
+            return ''
+        def _stars(p):
+            n = min(3, max(0, round(float(p) * 3)))
+            return '★' * n + '☆' * (3 - n)
+
+        # ── 7日間リスト（各行タップで詳細）────────────────────────
+        st.caption('タップすると条件・磯ランキングを確認できます')
         for _idx, _p in enumerate(_h_ai):
             _d  = _p['date']
             _wd = _WDAYS[_d.weekday()]
@@ -1135,24 +1229,34 @@ with tab0:
                 _mw_spd  = _mw_row['wind_max_ms']
                 _mw_prob = _mw_row['risk_prob']
                 if _mw_prob >= 0.90:
-                    _vs, _vc2, _vbg2 = '✖ STOP',   '#7a1c24', '#fdf0f0'
-                    _mw_str = f'休船確率大 {int(_mw_spd)}m/s'
+                    _vs = '✖ STOP'
+                    _mw_str = f'休船大 {int(_mw_spd)}m/s'
                 elif _mw_prob >= 0.75:
-                    _vs, _vc2, _vbg2 = '⚠️ CHECK', '#7a5f00', '#fffbe6'
-                    _mw_str = f'可能性あり {int(_mw_spd)}m/s'
+                    _vs = '⚠ CHECK'
+                    _mw_str = f'要確認 {int(_mw_spd)}m/s'
                 else:
-                    _vs, _vc2, _vbg2 = '✅ GO',    '#1a7a4a', '#f0faf4'
+                    _vs = '✅ GO'
                     _mw_str = f'出船可 {int(_mw_spd)}m/s'
             else:
-                _vs, _vc2, _vbg2 = '✅ GO', '#1a7a4a', '#f0faf4'
+                _vs = '✅ GO'
                 _mw_str = '–'
 
-            _today_mark = ' ⭐今日' if _d == _today else ''
-            _date_str = f"{_d.month}/{_d.day}（{_wd}）{_today_mark}"
+            # 天気・気温・潮汐を取得
+            _wx_r = _h_wx[_h_wx['date'] == _d].iloc[0] if _h_wx is not None and not _h_wx[_h_wx['date'] == _d].empty else None
+            _wx_e = _wxemoji(str(_wx_r['weather']) if _wx_r is not None and pd.notna(_wx_r.get('weather')) else '')
+            _tmax = int(_wx_r['temp_max']) if _wx_r is not None and pd.notna(_wx_r.get('temp_max')) else None
+            _tmin = int(_wx_r['temp_min']) if _wx_r is not None and pd.notna(_wx_r.get('temp_min')) else None
+            _temp_s = f'{_tmax}/{_tmin}℃' if _tmax is not None else ''
+            _tn_r = _h_tide[(_h_tide['date'] == _d) & _h_tide['tide_name'].notna()].iloc[0] if _h_tide is not None and not _h_tide.empty and not _h_tide[(_h_tide['date'] == _d) & _h_tide['tide_name'].notna()].empty else None
+            _tide_s = str(_tn_r['tide_name']) if _tn_r is not None else ''
+            _star_s = _stars(_gp)
+            _today_mark = '⭐今日  ' if _d == _today else ''
 
             _drm_cls = 'drm-stop' if '✖' in _vs else ('drm-check' if '⚠' in _vs else 'drm-go')
             _drm_today_cls = ' drm-today' if _d == _today else ''
-            _btn_label = f"{_vs}  {_date_str}\n{_mw_str}  出船スコア {_gp*100:.0f}%  期待 {_ec:.1f}匹"
+            _line1 = f"{_vs}  {_d.month}/{_d.day}({_wd})  {_today_mark}{_wx_e} {_temp_s}  {_tide_s}"
+            _line2 = f"  {_mw_str}  {_star_s} {_gp*100:.0f}%  期待{_ec:.1f}匹"
+            _btn_label = f"{_line1}\n{_line2}"
             st.markdown(f'<span class="day-row-marker {_drm_cls}{_drm_today_cls}"></span>', unsafe_allow_html=True)
             if st.button(_btn_label, key=f'detail_{_idx}', use_container_width=True):
                     _show_day_detail(
@@ -1478,7 +1582,8 @@ def _show_tab1_detail(sel_date, wx_df, tide_df, hourly_df, ai_preds,
 # ============================================================
 with tab1:
     _t1_wdays = '月火水木金土日'
-    location = st.radio('地点', ['串本', '白浜'], horizontal=True)
+    st.markdown('<p style="font-size:0.82rem;color:#4A7A95;margin-bottom:4px;font-weight:600;">地点</p>', unsafe_allow_html=True)
+    location = st.radio('', ['串本', '白浜'], horizontal=True, label_visibility='collapsed')
 
     with st.spinner('データ取得中...'):
         wx_df     = _load_weather(location)
@@ -2095,99 +2200,71 @@ with tab3:
         st.dataframe(agg_display, use_container_width=True, hide_index=True)
 
 
-# ============================================================
-# Tab 4: 月別・季節別
-# ============================================================
-with tab4:
-    st.subheader('月別・季節別の釣果傾向')
-    df4 = df[df['species'].notna() & df['count'].notna()]
-
-    if df4.empty:
-        st.info('表示できるデータがありません。')
-    else:
-        # 月×魚種ヒートマップ（魚種ごとの月別割合）
-        st.markdown('##### 月×魚種 釣果割合')
-        st.caption('各行（魚種）の月別割合。全月合計が100%になるよう正規化。色が濃い月ほどその魚種の釣果が集中している。')
-        heat_df = df4.groupby(['month', 'species'])['count'].sum().reset_index()
-        heat_pivot = heat_df.pivot(index='species', columns='month', values='count').fillna(0)
-        # 各魚種の合計で割って月別割合（%）に正規化
-        species_total = heat_pivot.sum(axis=1)
-        heat_pivot = heat_pivot.div(species_total, axis=0).mul(100).round(1)
-        heat_pivot.columns = [f'{m}月' for m in heat_pivot.columns]
-        fig_heat = px.imshow(
-            heat_pivot,
-            labels=dict(x='月', y='魚種', color='割合 (%)'),
-            color_continuous_scale='Blues',
-            zmin=0, zmax=100,
-            aspect='auto',
-        )
-        _n_sp_heat = len(heat_pivot.index)
-        fig_heat.update_layout(margin=dict(t=10, b=10), height=max(320, _n_sp_heat * 36 + 80))
-        st.plotly_chart(fig_heat, use_container_width=True, config={'displayModeBar': False})
-
-        st.markdown('---')
-
-        # 季節ごとの魚種構成円グラフ
-        st.markdown('##### 季節別 魚種構成')
-        season_order = ['春', '夏', '秋', '冬']
-        available_seasons = [s for s in season_order if s in df4['season'].values]
-        selected_season = st.selectbox('季節を選択', available_seasons)
-        season_df = df4[df4['season'] == selected_season]
-        pie_df = season_df.groupby('species')['count'].sum().reset_index()
-        fig_pie = px.pie(
-            pie_df, values='count', names='species',
-            title=f'{selected_season}の魚種構成',
-        )
-        st.plotly_chart(fig_pie, use_container_width=True, config={'displayModeBar': False})
-
-
-# ============================================================
-# Tab 5: 波高・天候条件
-# ============================================================
-with tab5:
-    st.subheader('波高・天候条件と釣果')
-    df5 = df[df['count'].notna()]
-
-    if df5.empty:
-        st.info('表示できるデータがありません。')
-    else:
-        # 波高帯別の釣果数 箱ひげ図
-        df5_wave = df5[df5['wave_height_m'].notna()].copy()
-        df5_wave['wave_band'] = (df5_wave['wave_height_m']
-                                 .apply(lambda w: f'{int(w)}〜{int(w)+1}m'))
-        if not df5_wave.empty:
-            fig_box = px.box(
-                df5_wave.sort_values('wave_height_m'),
-                x='wave_band', y='count',
-                labels={'wave_band': '波高帯', 'count': '釣果数（匹）'},
-                title='波高帯別の釣果数分布',
-            )
-            st.plotly_chart(fig_box, use_container_width=True, config={'displayModeBar': False})
+# ── 分析タブ：月別・季節別（expander）──
+with tab2:
+    with st.expander('📅 月別・季節別の釣果傾向', expanded=False):
+        df4 = df[df['species'].notna() & df['count'].notna()]
+        if df4.empty:
+            st.info('表示できるデータがありません。')
         else:
-            st.info('波高データがありません。')
-
-        # 天候×波高×水温 バブルチャート
-        df5_bubble = df5[
-            df5['wave_height_m'].notna() &
-            df5['water_temp_avg'].notna() &
-            df5['weather'].notna()
-        ]
-        if not df5_bubble.empty:
-            fig_bubble = px.scatter(
-                df5_bubble,
-                x='water_temp_avg', y='wave_height_m',
-                size='count', color='weather',
-                hover_data=['date', 'spot', 'species'],
-                labels={
-                    'water_temp_avg': '水温平均 (℃)',
-                    'wave_height_m':  '波高 (m)',
-                    'weather':        '天候',
-                    'count':          '釣果数',
-                },
-                title='天候 × 波高 × 水温 バブルチャート',
+            st.caption('各行（魚種）の月別割合。全月合計が100%になるよう正規化。色が濃い月ほどその魚種の釣果が集中している。')
+            heat_df = df4.groupby(['month', 'species'])['count'].sum().reset_index()
+            heat_pivot = heat_df.pivot(index='species', columns='month', values='count').fillna(0)
+            species_total = heat_pivot.sum(axis=1)
+            heat_pivot = heat_pivot.div(species_total, axis=0).mul(100).round(1)
+            heat_pivot.columns = [f'{m}月' for m in heat_pivot.columns]
+            fig_heat = px.imshow(
+                heat_pivot,
+                labels=dict(x='月', y='魚種', color='割合 (%)'),
+                color_continuous_scale='Blues',
+                zmin=0, zmax=100,
+                aspect='auto',
             )
-            st.plotly_chart(fig_bubble, use_container_width=True, config={'displayModeBar': False})
+            _n_sp_heat = len(heat_pivot.index)
+            fig_heat.update_layout(margin=dict(t=10, b=10), height=max(320, _n_sp_heat * 36 + 80))
+            st.plotly_chart(fig_heat, use_container_width=True, config={'displayModeBar': False})
+
+            st.markdown('---')
+            st.markdown('##### 季節別 魚種構成')
+            season_order = ['春', '夏', '秋', '冬']
+            available_seasons = [s for s in season_order if s in df4['season'].values]
+            selected_season = st.selectbox('季節を選択', available_seasons)
+            season_df = df4[df4['season'] == selected_season]
+            pie_df = season_df.groupby('species')['count'].sum().reset_index()
+            fig_pie = px.pie(pie_df, values='count', names='species', title=f'{selected_season}の魚種構成')
+            st.plotly_chart(fig_pie, use_container_width=True, config={'displayModeBar': False})
+
+    with st.expander('🌊 波高・天候条件と釣果', expanded=False):
+        df5 = df[df['count'].notna()]
+        if df5.empty:
+            st.info('表示できるデータがありません。')
         else:
-            st.info('表示に必要なデータが不足しています。')
+            df5_wave = df5[df5['wave_height_m'].notna()].copy()
+            df5_wave['wave_band'] = df5_wave['wave_height_m'].apply(lambda w: f'{int(w)}〜{int(w)+1}m')
+            if not df5_wave.empty:
+                fig_box = px.box(
+                    df5_wave.sort_values('wave_height_m'),
+                    x='wave_band', y='count',
+                    labels={'wave_band': '波高帯', 'count': '釣果数（匹）'},
+                    title='波高帯別の釣果数分布',
+                )
+                st.plotly_chart(fig_box, use_container_width=True, config={'displayModeBar': False})
+            else:
+                st.info('波高データがありません。')
+
+            df5_bubble = df5[
+                df5['wave_height_m'].notna() & df5['water_temp_avg'].notna() & df5['weather'].notna()
+            ]
+            if not df5_bubble.empty:
+                fig_bubble = px.scatter(
+                    df5_bubble, x='water_temp_avg', y='wave_height_m',
+                    size='count', color='weather',
+                    hover_data=['date', 'spot', 'species'],
+                    labels={'water_temp_avg': '水温平均 (℃)', 'wave_height_m': '波高 (m)', 'weather': '天候', 'count': '釣果数'},
+                    title='天候 × 波高 × 水温 バブルチャート',
+                )
+                st.plotly_chart(fig_bubble, use_container_width=True, config={'displayModeBar': False})
+            else:
+                st.info('表示に必要なデータが不足しています。')
 
 
