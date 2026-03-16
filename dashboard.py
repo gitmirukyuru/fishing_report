@@ -126,6 +126,24 @@ html, body, .stApp {
 }
 [data-testid="stDataFrame"] * { color: #1C3448 !important; }
 
+/* スクロール可能テーブルの右端にフェードを表示 */
+[data-testid="stDataFrame"] > div {
+    position: relative;
+}
+[data-testid="stDataFrame"] > div::after {
+    content: '▶';
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+    font-size: 10px;
+    color: #1B8FA8;
+    pointer-events: none;
+    z-index: 10;
+    background: linear-gradient(to right, transparent, rgba(237,242,247,0.95) 40%);
+    padding: 2px 4px 2px 16px;
+}
+
 /* ── Metricカード ── */
 [data-testid="metric-container"] {
     background: #FFFFFF !important;
@@ -534,8 +552,7 @@ _kpi_days    = df_all['date'].dt.date.nunique()
 _kpi_spots   = df_all['spot'].nunique()
 _kpi_maxsize = df_all['size_max_cm'].max()
 
-_c1, _c2 = st.columns(2)
-_c3, _c4 = st.columns(2)
+_c1, _c2, _c3, _c4 = st.columns(4)
 with _c1:
     st.metric('総釣果数', f'{_kpi_total:,} 匹')
 with _c2:
@@ -2113,6 +2130,7 @@ with tab4:
             labels=dict(x='月', y='魚種', color='割合 (%)'),
             color_continuous_scale='Blues',
             zmin=0, zmax=100,
+            aspect='auto',
         )
         _n_sp_heat = len(heat_pivot.index)
         fig_heat.update_layout(margin=dict(t=10, b=10), height=max(320, _n_sp_heat * 36 + 80))
