@@ -1456,19 +1456,17 @@ with tab0:
                         location=_u_loc, wdays=_WDAYS,
                         prompt_builder_mod=prompt_builder,
                     )
-        # JS: ボタンを .dcard-wrap 内に移動し position:absolute;inset:0 で全面カバー
-        import streamlit.components.v1 as _stc
-        _stc.html("""
+        # JS: st.html() で同一ドキュメントに直接スクリプトを注入
+        # window.parent不要・iframe制限を完全回避
+        st.html("""
         <script>
         (function(){
-          var doc;
-          try { doc = window.parent.document; }
-          catch(e) { console.error('dcard: parent access failed', e); return; }
+          var doc = document;
 
-          /* CSSをparent documentに注入（st.markdownのCSS適用漏れをカバー） */
-          if (!doc.getElementById('dcard-btn-injected-style')) {
+          /* CSS注入 */
+          if (!doc.getElementById('dcard-btn-style')) {
             var s = doc.createElement('style');
-            s.id = 'dcard-btn-injected-style';
+            s.id = 'dcard-btn-style';
             s.textContent = [
               'button.dcard-btn{position:absolute!important;inset:0!important;',
               'width:100%!important;height:100%!important;',
@@ -1488,58 +1486,48 @@ with tab0:
             doc.head.appendChild(s);
           }
 
-          function findBtnResult(cardEC) {
-            /* パターン1: 直接の nextElementSibling */
+          function findBtn(cardEC) {
             var n = cardEC.nextElementSibling;
-            if (n) {
-              var b = n.querySelector('button');
-              if (b) return {btnEC: n, btn: b};
-            }
-            /* パターン2: 親の nextElementSibling（ラッパーdivが挟まる場合） */
-            var parent = cardEC.parentElement;
-            if (parent) {
-              var pn = parent.nextElementSibling;
+            if (n) { var b = n.querySelector('button'); if (b) return {ec: n, btn: b}; }
+            var p = cardEC.parentElement;
+            if (p) {
+              var pn = p.nextElementSibling;
               if (pn) {
                 var ec2 = pn.querySelector('[data-testid="element-container"]') || pn;
-                var b2 = ec2.querySelector('button');
-                if (b2) return {btnEC: ec2, btn: b2};
+                var b2 = ec2.querySelector('button'); if (b2) return {ec: ec2, btn: b2};
               }
             }
             return null;
           }
 
           function tag() {
-            doc.querySelectorAll('.dcard-wrap:not(.dcard-processed)').forEach(function(card){
+            doc.querySelectorAll('.dcard-wrap').forEach(function(card){
+              /* ボタンが既にカード内にあればスキップ */
+              if (card.querySelector('button')) return;
               var cardEC = card.closest('[data-testid="element-container"]');
               if (!cardEC) return;
-              var r = findBtnResult(cardEC);
+              var r = findBtn(cardEC);
               if (!r) return;
-              card.classList.add('dcard-processed');
               r.btn.classList.add('dcard-btn');
-              card.appendChild(r.btn);           /* ボタンをカード内に移動 */
-              r.btnEC.classList.add('dcard-btn-ec-hidden'); /* 空コンテナを非表示 */
+              card.appendChild(r.btn);
+              r.ec.classList.add('dcard-btn-ec-hidden');
             });
           }
 
           tag();
 
-          /* MutationObserver: 再レンダリング時にも自動適用 */
-          var busy = false;
+          var timer = null;
           var obs = new MutationObserver(function(){
-            if (busy) return;
-            busy = true;
-            requestAnimationFrame(function(){ tag(); busy = false; });
+            clearTimeout(timer);
+            timer = setTimeout(tag, 80);
           });
           obs.observe(doc.body, {childList:true, subtree:true});
 
-          /* フォールバック: 6秒間200msごとに試行 */
-          var n = 0;
-          var iv = setInterval(function(){
-            tag(); if (++n > 30) clearInterval(iv);
-          }, 200);
+          /* フォールバック */
+          var c = 0; var iv = setInterval(function(){ tag(); if(++c>50) clearInterval(iv); }, 200);
         })();
         </script>
-        """, height=1)
+        """)
     else:
         st.info('データを取得できませんでした。')
 
