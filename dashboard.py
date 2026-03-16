@@ -394,41 +394,27 @@ hr { border-color: #D5E6EF; margin: 1.2rem 0; }
 .dcard-wrap.drm-check .dcard-dep { background: #b07d00; }
 .dcard-wrap.drm-stop  .dcard-dep { background: #c0392b; }
 
-/* カード: position:relative で内部ボタンの基準点になる */
-.dcard-wrap {
-    position: relative !important;
+/* カード全体クリック: .clickable-card を基準にボタンを全面カバー */
+.clickable-card {
+    position: relative;
 }
-
-/* JSでdcard-wrap内に移動したボタン: inset:0で全面カバー */
-button.dcard-btn {
+.clickable-card button {
     position: absolute !important;
     inset: 0 !important;
     width: 100% !important;
     height: 100% !important;
-    background: transparent !important;
-    background-image: none !important;
-    border: none !important;
-    box-shadow: none !important;
-    color: transparent !important;
+    opacity: 0 !important;
     cursor: pointer !important;
-    padding: 0 !important;
-    border-radius: 12px !important;
-    font-size: 0 !important;
-    outline: none !important;
-    z-index: 10 !important;
-}
-button.dcard-btn:hover {
-    background: rgba(0,0,0,0.04) !important;
-    box-shadow: none !important;
-    border: none !important;
-}
-button.dcard-btn:active,
-button.dcard-btn:focus,
-button.dcard-btn:focus-visible {
     background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+.clickable-card button:focus,
+.clickable-card button:active,
+.clickable-card button:focus-visible {
     outline: none !important;
     box-shadow: none !important;
-    border: none !important;
 }
 
 /* ── 地点セグメントコントロール ── */
@@ -1413,10 +1399,9 @@ with tab0:
             else:
                 _dep_html = ''
 
-            # HTMLカード組み立て
-            _card_html = (
-                f'<div class="dcard-wrap {_u_drm} {_u_drm_today}">'
-                f'<span class="dcard-marker {_u_drm} {_u_drm_today}"></span>'
+            # HTMLカード組み立て（clickable-card で開いたまま → button → 閉じる）
+            _card_open = (
+                f'<div class="clickable-card dcard-wrap {_u_drm} {_u_drm_today}">'
                 f'<div class="dcard-l">'
                 f'<div class="dcard-stars">{_star_disp}</div>'
                 f'<div class="dcard-count">{_count_disp}</div>'
@@ -1433,9 +1418,9 @@ with tab0:
                 f'{_dep_html}'
                 f'</div>'
                 f'</div>'
-                f'</div>'
+                # ← </div> を意図的に省略してボタンを中に含める
             )
-            st.markdown(_card_html, unsafe_allow_html=True)
+            st.markdown(_card_open, unsafe_allow_html=True)
             if st.button('', key=f'unified_{_uidx}', use_container_width=True):
                 if _u_ai_p is not None:
                     _show_day_detail(
@@ -1456,78 +1441,7 @@ with tab0:
                         location=_u_loc, wdays=_WDAYS,
                         prompt_builder_mod=prompt_builder,
                     )
-        # JS: st.html() で同一ドキュメントに直接スクリプトを注入
-        # window.parent不要・iframe制限を完全回避
-        st.html("""
-        <script>
-        (function(){
-          var doc = document;
-
-          /* CSS注入 */
-          if (!doc.getElementById('dcard-btn-style')) {
-            var s = doc.createElement('style');
-            s.id = 'dcard-btn-style';
-            s.textContent = [
-              'button.dcard-btn{position:absolute!important;inset:0!important;',
-              'width:100%!important;height:100%!important;',
-              'background:transparent!important;background-image:none!important;',
-              'border:none!important;box-shadow:none!important;',
-              'color:transparent!important;cursor:pointer!important;',
-              'padding:0!important;border-radius:12px!important;',
-              'font-size:0!important;outline:none!important;z-index:10!important;',
-              'min-height:unset!important;}',
-              'button.dcard-btn:hover{background:rgba(0,0,0,0.04)!important;',
-              'box-shadow:none!important;border:none!important;}',
-              'button.dcard-btn:active,button.dcard-btn:focus,button.dcard-btn:focus-visible{',
-              'background:transparent!important;outline:none!important;',
-              'box-shadow:none!important;border:none!important;}',
-              '.dcard-btn-ec-hidden{display:none!important;}',
-            ].join('');
-            doc.head.appendChild(s);
-          }
-
-          function findBtn(cardEC) {
-            var n = cardEC.nextElementSibling;
-            if (n) { var b = n.querySelector('button'); if (b) return {ec: n, btn: b}; }
-            var p = cardEC.parentElement;
-            if (p) {
-              var pn = p.nextElementSibling;
-              if (pn) {
-                var ec2 = pn.querySelector('[data-testid="element-container"]') || pn;
-                var b2 = ec2.querySelector('button'); if (b2) return {ec: ec2, btn: b2};
-              }
-            }
-            return null;
-          }
-
-          function tag() {
-            doc.querySelectorAll('.dcard-wrap').forEach(function(card){
-              /* ボタンが既にカード内にあればスキップ */
-              if (card.querySelector('button')) return;
-              var cardEC = card.closest('[data-testid="element-container"]');
-              if (!cardEC) return;
-              var r = findBtn(cardEC);
-              if (!r) return;
-              r.btn.classList.add('dcard-btn');
-              card.appendChild(r.btn);
-              r.ec.classList.add('dcard-btn-ec-hidden');
-            });
-          }
-
-          tag();
-
-          var timer = null;
-          var obs = new MutationObserver(function(){
-            clearTimeout(timer);
-            timer = setTimeout(tag, 80);
-          });
-          obs.observe(doc.body, {childList:true, subtree:true});
-
-          /* フォールバック */
-          var c = 0; var iv = setInterval(function(){ tag(); if(++c>50) clearInterval(iv); }, 200);
-        })();
-        </script>
-        """)
+            st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.info('データを取得できませんでした。')
 
