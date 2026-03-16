@@ -1483,6 +1483,56 @@ with tab0:
     else:
         st.info('データを取得できませんでした。')
 
+    # ── 診断: DOM要素の位置を測定 ───────────────────────────────
+    import streamlit.components.v1 as _stc_diag
+    _stc_diag.html("""
+    <div id="diag-result" style="font-family:monospace;font-size:11px;color:#333;background:#ffe;padding:8px;border-radius:6px;max-height:300px;overflow:auto;"></div>
+    <script>
+    (function(){
+        var out = [];
+        try {
+            var doc = window.parent.document;
+            // 親のstVerticalBlockのgapを確認
+            var blocks = doc.querySelectorAll('[data-testid="stVerticalBlock"]');
+            blocks.forEach(function(b, i){
+                var cs = window.parent.getComputedStyle(b);
+                if (cs.gap && cs.gap !== 'normal' && cs.gap !== '0px') {
+                    out.push('stVerticalBlock['+i+'] gap=' + cs.gap + ' rowGap=' + cs.rowGap);
+                }
+            });
+            // dcard-wrapの位置とサイズ
+            var cards = doc.querySelectorAll('.dcard-wrap');
+            cards.forEach(function(c, i){
+                var r = c.getBoundingClientRect();
+                var cs = window.parent.getComputedStyle(c);
+                out.push('card['+i+'] top='+Math.round(r.top)+' h='+Math.round(r.height)+' mb='+cs.marginBottom);
+                // 親element-containerの高さ
+                var ec = c.closest('[data-testid="element-container"]');
+                if(ec){
+                    var er = ec.getBoundingClientRect();
+                    out.push('  container top='+Math.round(er.top)+' h='+Math.round(er.height));
+                }
+            });
+            // ボタンの位置
+            var markers = doc.querySelectorAll('.dcard-marker');
+            markers.forEach(function(m, i){
+                var ec = m.closest('[data-testid="element-container"]');
+                if(!ec) return;
+                var next = ec.nextElementSibling;
+                if(!next) return;
+                var btn = next.querySelector('button');
+                if(!btn) return;
+                var br = btn.getBoundingClientRect();
+                out.push('btn['+i+'] top='+Math.round(br.top)+' h='+Math.round(br.height));
+            });
+        } catch(e) {
+            out.push('ERROR: ' + e.message);
+        }
+        document.getElementById('diag-result').innerHTML = out.join('<br>');
+    })();
+    </script>
+    """, height=320, scrolling=True)
+
     # ── 最近釣れ始めている魚 ─────────────────────────────────────
     st.markdown('---')
     st.markdown('##### 🐟 最近釣れ始めている魚')
