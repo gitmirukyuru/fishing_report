@@ -1244,23 +1244,14 @@ def _build_reasons(pred, wind_ms, wave_val, wt, tide_name, rising):
 def _show_tab1_detail(sel_date, wx_df, tide_df, hourly_df, ai_preds,
                       base_rates, df_all_data, location, wdays, prompt_builder_mod):
     """天気・潮汐・AI予測をダイアログで表示する。"""
-    import streamlit.components.v1 as _stc2
-    _stc2.html(
-        '<script>(function(){'
-        'var SEL="[data-testid=\\"stDialogScrollArea\\"]";'
-        'var T0=Date.now();var DUR=5000;'
-        'function rst(){'
-        '[window.parent,window.top].forEach(function(w){'
-        'try{w.document.querySelectorAll(SEL).forEach(function(e){e.scrollTop=0;});}catch(e){}});}'
-        '[80,250,600,1200,2500].forEach(function(t){setTimeout(rst,t)});'
-        '[window.parent,window.top].forEach(function(w){'
-        'try{'
-        'var ob=new MutationObserver(function(){'
-        'if(Date.now()-T0<DUR){rst();}else{ob.disconnect();}});'
-        'ob.observe(w.document.body,{childList:true,subtree:true});'
-        '}catch(e){}});'
-        '})();</script>',
-        height=1, scrolling=False,
+    # ダイアログのスクロールコンテナがコンテンツ追加時に自動スクロールするのを防ぐ
+    st.markdown(
+        '<style>'
+        '[data-testid="stDialogScrollArea"],'
+        '[data-testid="stDialogScrollArea"] *'
+        '{ overflow-anchor: none !important; }'
+        '</style>',
+        unsafe_allow_html=True,
     )
     d = sel_date
     wd = wdays[d.weekday()]
