@@ -394,12 +394,40 @@ hr { border-color: #D5E6EF; margin: 1.2rem 0; }
 .dcard-wrap.drm-check .dcard-dep { background: #b07d00; }
 .dcard-wrap.drm-stop  .dcard-dep { background: #c0392b; }
 
-/* 透明オーバーレイボタン（HTMLカードの上に重ねてクリック検知） */
+/* カードコンテナ: 高さ0に潰してレイアウトから外す */
+[data-testid="element-container"]:has(.dcard-marker) {
+    position: relative !important;
+    height: 0 !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    z-index: 1 !important;
+}
+[data-testid="element-container"]:has(.dcard-marker) > div {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+/* カードをabsoluteでレイアウト外に描画 */
+.dcard-wrap {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 1 !important;
+}
+
+/* 透明オーバーレイボタン: 自然な位置に80px確保 */
 [data-testid="element-container"]:has(.dcard-marker) + [data-testid="element-container"] {
-    margin-top: -88px !important;
     position: relative !important;
     z-index: 2 !important;
+    margin-top: 0 !important;
     margin-bottom: 8px !important;
+    padding: 0 !important;
+}
+[data-testid="element-container"]:has(.dcard-marker) + [data-testid="element-container"] .stButton {
+    margin: 0 !important;
+    padding: 0 !important;
 }
 [data-testid="element-container"]:has(.dcard-marker) + [data-testid="element-container"] button {
     height: 80px !important;
@@ -424,8 +452,8 @@ hr { border-color: #D5E6EF; margin: 1.2rem 0; }
     background: rgba(0,0,0,0.08) !important;
 }
 
-/* カード間の余白 */
-[data-testid="element-container"]:has(.dcard-marker) {
+/* (旧margin-bottomルール — 新構造では不要だが互換のため残す) */
+[data-testid="element-container"]:has(.dcard-marker-legacy) {
     margin-bottom: 0 !important; padding-bottom: 0 !important;
 }
 
