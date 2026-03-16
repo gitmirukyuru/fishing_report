@@ -1410,7 +1410,7 @@ with tab1:
                 fig_t.update_layout(height=180, margin=_CHART_MARGIN,
                                     plot_bgcolor='white', paper_bgcolor='white',
                                     title=dict(text='気温', font_size=13, x=0.02))
-                st.plotly_chart(fig_t, use_container_width=True)
+                st.plotly_chart(fig_t, use_container_width=True, config={'displayModeBar': False})
 
         with ch_right:
             # 潮汐グラフ
@@ -1441,7 +1441,7 @@ with tab1:
                     fig_td.update_layout(height=180, margin=_CHART_MARGIN,
                                          plot_bgcolor='white', paper_bgcolor='white',
                                          title=dict(text='潮位', font_size=13, x=0.02))
-                    st.plotly_chart(fig_td, use_container_width=True)
+                    st.plotly_chart(fig_td, use_container_width=True, config={'displayModeBar': False})
 
         st.markdown('---')
 
@@ -1451,23 +1451,29 @@ with tab1:
                 tide_name_str, high_str, low_str = _build_day_info(d)
 
             wd    = _WEEKDAYS[d.weekday()]
+            # タイトルは短く：日付・天気・気温のみ
             title = f"{d.month}/{d.day}({wd})"
             if weather_label:
-                title += f"　{weather_label}"
+                title += f"  {weather_label}"
             if temp_max is not None and temp_min is not None:
-                title += f"　🌡️{int(temp_max)}/{int(temp_min)}℃"
+                title += f"  🌡️{int(temp_max)}/{int(temp_min)}℃"
             elif temp_max is not None:
-                title += f"　🌡️{int(temp_max)}℃"
-            if tide_name_str:
-                title += f"　🌙{tide_name_str}"
-            if high_str:
-                title += f"　🌊満潮 {high_str}"
-            if low_str:
-                title += f"　干潮 {low_str}"
-            if sunrise:
-                title += f"　🌅{sunrise}"
+                title += f"  🌡️{int(temp_max)}℃"
 
             with st.expander(title):
+                # 潮汐情報（タイトルから移動）
+                tide_parts = []
+                if tide_name_str:
+                    tide_parts.append(f"🌙 {tide_name_str}")
+                if high_str:
+                    tide_parts.append(f"🌊 満潮 {high_str}")
+                if low_str:
+                    tide_parts.append(f"↓ 干潮 {low_str}")
+                if sunrise:
+                    tide_parts.append(f"🌅 {sunrise}")
+                if tide_parts:
+                    st.caption("　".join(tide_parts))
+
                 day_hourly = (hourly_df[hourly_df['date'] == d]
                               if hourly_df is not None else pd.DataFrame())
 
@@ -1599,112 +1605,100 @@ with tab2:
         )
         _cond_mean['temp_band'] = _cond_mean['temp_band_num'].apply(lambda t: f'{t}〜{t+1}℃')
 
-        heat_col1, heat_col2 = st.columns(2)
-
-        with heat_col1:
-            st.markdown('###### 出現率 (%)')
-            piv_rate = (
-                _appear.pivot(index='species_detail', columns='temp_band', values='presence_rate')
-                .reindex(columns=band_order)
+        st.markdown('###### 出現率 (%)')
+        piv_rate = (
+            _appear.pivot(index='species_detail', columns='temp_band', values='presence_rate')
+            .reindex(columns=band_order)
+        )
+        if not piv_rate.empty:
+            fig_rate = px.imshow(
+                piv_rate,
+                labels=dict(x='水温帯 (℃)', y='魚種', color='出現率 (%)'),
+                color_continuous_scale='Blues',
+                zmin=0, zmax=100,
+                aspect='auto',
             )
-            if not piv_rate.empty:
-                fig_rate = px.imshow(
-                    piv_rate,
-                    labels=dict(x='水温帯 (℃)', y='魚種', color='出現率 (%)'),
-                    color_continuous_scale='Blues',
-                    zmin=0, zmax=100,
-                    aspect='auto',
-                    text_auto='.0f',
-                )
-                fig_rate.update_layout(margin=dict(t=10, b=10), height=300)
-                fig_rate.update_traces(textfont_size=10)
-                st.plotly_chart(fig_rate, use_container_width=True)
+            fig_rate.update_layout(margin=dict(t=10, b=10), height=280)
+            st.plotly_chart(fig_rate, use_container_width=True, config={'displayModeBar': False})
 
-        with heat_col2:
-            st.markdown('###### 釣れた時の平均匹数')
-            piv_mean = (
-                _cond_mean.pivot(index='species_detail', columns='temp_band', values='cond_mean')
-                .reindex(columns=band_order)
+        st.markdown('###### 釣れた時の平均匹数')
+        piv_mean = (
+            _cond_mean.pivot(index='species_detail', columns='temp_band', values='cond_mean')
+            .reindex(columns=band_order)
+        )
+        if not piv_mean.empty:
+            fig_mean = px.imshow(
+                piv_mean,
+                labels=dict(x='水温帯 (℃)', y='魚種', color='平均匹数'),
+                color_continuous_scale='YlOrRd',
+                aspect='auto',
             )
-            if not piv_mean.empty:
-                fig_mean = px.imshow(
-                    piv_mean,
-                    labels=dict(x='水温帯 (℃)', y='魚種', color='平均匹数'),
-                    color_continuous_scale='YlOrRd',
-                    aspect='auto',
-                    text_auto='.1f',
-                )
-                fig_mean.update_layout(margin=dict(t=10, b=10), height=300)
-                fig_mean.update_traces(textfont_size=10)
-                st.plotly_chart(fig_mean, use_container_width=True)
+            fig_mean.update_layout(margin=dict(t=10, b=10), height=280)
+            st.plotly_chart(fig_mean, use_container_width=True, config={'displayModeBar': False})
 
         st.markdown('---')
 
         # ── 2. 水温帯別サイズ分布 & 釣れる確率 ──────────────
-        col_box, col_prob = st.columns(2)
+        st.markdown('##### 水温帯別サイズ分布')
+        sp_sel = st.multiselect(
+            '魚種を選択', top_species, default=top_species[:2], key='tab2_sp'
+        )
+        # 1匹1行に展開したデータを使用（サイズ範囲を匹数で等分）
+        df2_exp = load_data_exploded()
+        df2_exp = df2_exp[
+            (df2_exp['date'].dt.date >= d_from) &
+            (df2_exp['date'].dt.date <= d_to) &
+            (df2_exp['species'].isin(selected_species)) &
+            df2_exp['water_temp_avg'].notna() &
+            df2_exp['size_cm'].notna()
+        ].copy()
+        if not df2_exp.empty:
+            df2_exp['temp_band_num'] = df2_exp['water_temp_avg'].apply(lambda t: int(t))
+            df2_exp['temp_band']     = df2_exp['temp_band_num'].apply(lambda t: f'{t}〜{t+1}℃')
 
-        with col_box:
-            st.markdown('##### 水温帯別サイズ分布')
-            sp_sel = st.multiselect(
-                '魚種を選択', top_species, default=top_species[:2], key='tab2_sp'
+        box_src = df2_exp[df2_exp['species_detail'].isin(sp_sel)] if not df2_exp.empty else pd.DataFrame()
+        if box_src.empty:
+            st.info('対象データがありません。')
+        else:
+            box_src = box_src.sort_values('temp_band_num')
+            fig_box = px.box(
+                box_src,
+                x='temp_band', y='size_cm', color='species_detail',
+                category_orders={'temp_band': band_order},
+                labels={'temp_band': '水温帯 (℃)', 'size_cm': 'サイズ (cm)',
+                        'species_detail': '魚種'},
+                points=False,
             )
-            # 1匹1行に展開したデータを使用（サイズ範囲を匹数で等分）
-            df2_exp = load_data_exploded()
-            df2_exp = df2_exp[
-                (df2_exp['date'].dt.date >= d_from) &
-                (df2_exp['date'].dt.date <= d_to) &
-                (df2_exp['species'].isin(selected_species)) &
-                df2_exp['water_temp_avg'].notna() &
-                df2_exp['size_cm'].notna()
-            ].copy()
-            if not df2_exp.empty:
-                df2_exp['temp_band_num'] = df2_exp['water_temp_avg'].apply(lambda t: int(t))
-                df2_exp['temp_band']     = df2_exp['temp_band_num'].apply(lambda t: f'{t}〜{t+1}℃')
+            fig_box.update_layout(margin=dict(t=10, b=10),
+                                  legend=dict(orientation='h', y=-0.25))
+            st.plotly_chart(fig_box, use_container_width=True, config={'displayModeBar': False})
 
-            box_src = df2_exp[df2_exp['species_detail'].isin(sp_sel)] if not df2_exp.empty else pd.DataFrame()
-            if box_src.empty:
-                st.info('対象データがありません。')
-            else:
-                box_src = box_src.sort_values('temp_band_num')
-                fig_box = px.box(
-                    box_src,
-                    x='temp_band', y='size_cm', color='species_detail',
-                    category_orders={'temp_band': band_order},
-                    labels={'temp_band': '水温帯 (℃)', 'size_cm': 'サイズ (cm)',
-                            'species_detail': '魚種'},
-                    points=False,
-                )
-                fig_box.update_layout(margin=dict(t=10, b=10),
-                                      legend=dict(orientation='h', y=-0.25))
-                st.plotly_chart(fig_box, use_container_width=True)
+        st.markdown('##### 水温帯別 釣れる確率（5匹以上）')
+        prob_src = (
+            df2[df2['species_detail'].isin(top_species)]
+            .groupby(['species_detail', 'temp_band', 'temp_band_num'])
+            .agg(n=('count', 'size'), hit=('count', lambda x: (x >= 5).sum()))
+            .reset_index()
+        )
+        prob_src = prob_src[prob_src['n'] >= 3]  # サンプル数3件以上のみ
+        prob_src['prob'] = prob_src['hit'] / prob_src['n']
+        prob_src = prob_src.sort_values('temp_band_num')
 
-        with col_prob:
-            st.markdown('##### 水温帯別 釣れる確率（5匹以上）')
-            prob_src = (
-                df2[df2['species_detail'].isin(top_species)]
-                .groupby(['species_detail', 'temp_band', 'temp_band_num'])
-                .agg(n=('count', 'size'), hit=('count', lambda x: (x >= 5).sum()))
-                .reset_index()
+        if prob_src.empty:
+            st.info('データが不足しています。')
+        else:
+            fig_prob = px.line(
+                prob_src,
+                x='temp_band', y='prob', color='species_detail',
+                markers=True,
+                category_orders={'temp_band': band_order},
+                labels={'temp_band': '水温帯 (℃)', 'prob': '確率',
+                        'species_detail': '魚種'},
             )
-            prob_src = prob_src[prob_src['n'] >= 3]  # サンプル数3件以上のみ
-            prob_src['prob'] = prob_src['hit'] / prob_src['n']
-            prob_src = prob_src.sort_values('temp_band_num')
-
-            if prob_src.empty:
-                st.info('データが不足しています。')
-            else:
-                fig_prob = px.line(
-                    prob_src,
-                    x='temp_band', y='prob', color='species_detail',
-                    markers=True,
-                    category_orders={'temp_band': band_order},
-                    labels={'temp_band': '水温帯 (℃)', 'prob': '確率',
-                            'species_detail': '魚種'},
-                )
-                fig_prob.update_yaxes(tickformat='.0%', range=[0, 1])
-                fig_prob.update_layout(margin=dict(t=10, b=10),
-                                       legend=dict(orientation='h', y=-0.25))
-                st.plotly_chart(fig_prob, use_container_width=True)
+            fig_prob.update_yaxes(tickformat='.0%', range=[0, 1])
+            fig_prob.update_layout(margin=dict(t=10, b=10),
+                                   legend=dict(orientation='h', y=-0.25))
+            st.plotly_chart(fig_prob, use_container_width=True, config={'displayModeBar': False})
 
         st.markdown('---')
 
@@ -1730,7 +1724,7 @@ with tab2:
                     )
                     fig_pdp_a.update_traces(line=dict(color='tomato', width=2))
                     fig_pdp_a.update_layout(margin=dict(t=10, b=10))
-                    st.plotly_chart(fig_pdp_a, use_container_width=True)
+                    st.plotly_chart(fig_pdp_a, use_container_width=True, config={'displayModeBar': False})
 
             with pdp_col2:
                 if 'go_proba' in pdp_df.columns:
@@ -1742,7 +1736,7 @@ with tab2:
                     fig_pdp_b.update_traces(line=dict(color='steelblue', width=2))
                     fig_pdp_b.update_yaxes(tickformat='.0%', range=[0, 1])
                     fig_pdp_b.update_layout(margin=dict(t=10, b=10))
-                    st.plotly_chart(fig_pdp_b, use_container_width=True)
+                    st.plotly_chart(fig_pdp_b, use_container_width=True, config={'displayModeBar': False})
 
         # ── 生データ散布図（参考） ────────────────────────────
         with st.expander('生データ散布図（参考）', expanded=False):
@@ -1752,7 +1746,7 @@ with tab2:
                 labels={'water_temp_avg': '水温平均 (℃)', 'count': '釣果数（匹）',
                         'species_detail': '魚種'},
             )
-            st.plotly_chart(fig_scatter, use_container_width=True)
+            st.plotly_chart(fig_scatter, use_container_width=True, config={'displayModeBar': False})
 
         st.markdown('---')
 
@@ -1850,7 +1844,7 @@ with tab2:
                             legend=dict(orientation='h', y=-0.25),
                             xaxis=dict(categoryorder='array', categoryarray=_band_order_detail),
                         )
-                        st.plotly_chart(_fig_sz, use_container_width=True)
+                        st.plotly_chart(_fig_sz, use_container_width=True, config={'displayModeBar': False})
 
                         # 統計サマリー
                         _lo_temp = _size_by_temp.iloc[0]
@@ -1911,7 +1905,7 @@ with tab2:
                                 margin=dict(t=10, b=10),
                                 legend=dict(orientation='h', y=-0.25),
                             )
-                            st.plotly_chart(_fig_cnt, use_container_width=True)
+                            st.plotly_chart(_fig_cnt, use_container_width=True, config={'displayModeBar': False})
 
                 st.markdown('')
                 # 水温トレンド別 サイズ＋匹数比較
@@ -1973,7 +1967,7 @@ with tab2:
                                                    showlegend=False,
                                                    coloraxis_showscale=False)
                             st.markdown('平均サイズ (cm)')
-                            st.plotly_chart(_fig_tsz, use_container_width=True)
+                            st.plotly_chart(_fig_tsz, use_container_width=True, config={'displayModeBar': False})
                         else:
                             st.info('サイズデータが不足しています。')
 
@@ -1994,7 +1988,7 @@ with tab2:
                                                     showlegend=False,
                                                     coloraxis_showscale=False)
                             st.markdown('平均匹数')
-                            st.plotly_chart(_fig_tcnt, use_container_width=True)
+                            st.plotly_chart(_fig_tcnt, use_container_width=True, config={'displayModeBar': False})
                         else:
                             st.info('匹数データが不足しています。')
 
@@ -2023,7 +2017,7 @@ with tab3:
             title='釣り場別 総釣果数',
             hover_data=['avg_size', 'max_size', 'species_list'],
         )
-        st.plotly_chart(fig_rank, use_container_width=True)
+        st.plotly_chart(fig_rank, use_container_width=True, config={'displayModeBar': False})
 
         agg_display = agg.rename(columns={
             'spot': '釣り場', 'total_count': '総釣果数',
@@ -2046,41 +2040,38 @@ with tab4:
     if df4.empty:
         st.info('表示できるデータがありません。')
     else:
-        col1, col2 = st.columns(2)
+        # 月×魚種ヒートマップ（魚種ごとの月別割合）
+        st.markdown('##### 月×魚種 釣果割合')
+        st.caption('各行（魚種）の月別割合。全月合計が100%になるよう正規化。色が濃い月ほどその魚種の釣果が集中している。')
+        heat_df = df4.groupby(['month', 'species'])['count'].sum().reset_index()
+        heat_pivot = heat_df.pivot(index='species', columns='month', values='count').fillna(0)
+        # 各魚種の合計で割って月別割合（%）に正規化
+        species_total = heat_pivot.sum(axis=1)
+        heat_pivot = heat_pivot.div(species_total, axis=0).mul(100).round(1)
+        heat_pivot.columns = [f'{m}月' for m in heat_pivot.columns]
+        fig_heat = px.imshow(
+            heat_pivot,
+            labels=dict(x='月', y='魚種', color='割合 (%)'),
+            color_continuous_scale='Blues',
+            zmin=0, zmax=100,
+        )
+        fig_heat.update_layout(margin=dict(t=10, b=10))
+        st.plotly_chart(fig_heat, use_container_width=True, config={'displayModeBar': False})
 
-        with col1:
-            # 月×魚種ヒートマップ（魚種ごとの月別割合）
-            heat_df = df4.groupby(['month', 'species'])['count'].sum().reset_index()
-            heat_pivot = heat_df.pivot(index='species', columns='month', values='count').fillna(0)
-            # 各魚種の合計で割って月別割合（%）に正規化
-            species_total = heat_pivot.sum(axis=1)
-            heat_pivot = heat_pivot.div(species_total, axis=0).mul(100).round(1)
-            heat_pivot.columns = [f'{m}月' for m in heat_pivot.columns]
-            fig_heat = px.imshow(
-                heat_pivot,
-                labels=dict(x='月', y='魚種', color='割合 (%)'),
-                title='月×魚種 釣果割合ヒートマップ（魚種ごと）',
-                color_continuous_scale='Blues',
-                zmin=0, zmax=100,
-                text_auto='.0f',
-            )
-            fig_heat.update_traces(textfont_size=9)
-            fig_heat.update_layout(margin=dict(t=40, b=10))
-            st.caption('各行（魚種）の月別割合。全月合計が100%になるよう正規化。色が濃い月ほどその魚種の釣果が集中している。')
-            st.plotly_chart(fig_heat, use_container_width=True)
+        st.markdown('---')
 
-        with col2:
-            # 季節ごとの魚種構成円グラフ
-            season_order = ['春', '夏', '秋', '冬']
-            available_seasons = [s for s in season_order if s in df4['season'].values]
-            selected_season = st.selectbox('季節を選択', available_seasons)
-            season_df = df4[df4['season'] == selected_season]
-            pie_df = season_df.groupby('species')['count'].sum().reset_index()
-            fig_pie = px.pie(
-                pie_df, values='count', names='species',
-                title=f'{selected_season}の魚種構成',
-            )
-            st.plotly_chart(fig_pie, use_container_width=True)
+        # 季節ごとの魚種構成円グラフ
+        st.markdown('##### 季節別 魚種構成')
+        season_order = ['春', '夏', '秋', '冬']
+        available_seasons = [s for s in season_order if s in df4['season'].values]
+        selected_season = st.selectbox('季節を選択', available_seasons)
+        season_df = df4[df4['season'] == selected_season]
+        pie_df = season_df.groupby('species')['count'].sum().reset_index()
+        fig_pie = px.pie(
+            pie_df, values='count', names='species',
+            title=f'{selected_season}の魚種構成',
+        )
+        st.plotly_chart(fig_pie, use_container_width=True, config={'displayModeBar': False})
 
 
 # ============================================================
@@ -2093,47 +2084,43 @@ with tab5:
     if df5.empty:
         st.info('表示できるデータがありません。')
     else:
-        col1, col2 = st.columns(2)
+        # 波高帯別の釣果数 箱ひげ図
+        df5_wave = df5[df5['wave_height_m'].notna()].copy()
+        df5_wave['wave_band'] = (df5_wave['wave_height_m']
+                                 .apply(lambda w: f'{int(w)}〜{int(w)+1}m'))
+        if not df5_wave.empty:
+            fig_box = px.box(
+                df5_wave.sort_values('wave_height_m'),
+                x='wave_band', y='count',
+                labels={'wave_band': '波高帯', 'count': '釣果数（匹）'},
+                title='波高帯別の釣果数分布',
+            )
+            st.plotly_chart(fig_box, use_container_width=True, config={'displayModeBar': False})
+        else:
+            st.info('波高データがありません。')
 
-        with col1:
-            # 波高帯別の釣果数 箱ひげ図
-            df5_wave = df5[df5['wave_height_m'].notna()].copy()
-            df5_wave['wave_band'] = (df5_wave['wave_height_m']
-                                     .apply(lambda w: f'{int(w)}〜{int(w)+1}m'))
-            if not df5_wave.empty:
-                fig_box = px.box(
-                    df5_wave.sort_values('wave_height_m'),
-                    x='wave_band', y='count',
-                    labels={'wave_band': '波高帯', 'count': '釣果数（匹）'},
-                    title='波高帯別の釣果数分布',
-                )
-                st.plotly_chart(fig_box, use_container_width=True)
-            else:
-                st.info('波高データがありません。')
-
-        with col2:
-            # 天候×波高×水温 バブルチャート
-            df5_bubble = df5[
-                df5['wave_height_m'].notna() &
-                df5['water_temp_avg'].notna() &
-                df5['weather'].notna()
-            ]
-            if not df5_bubble.empty:
-                fig_bubble = px.scatter(
-                    df5_bubble,
-                    x='water_temp_avg', y='wave_height_m',
-                    size='count', color='weather',
-                    hover_data=['date', 'spot', 'species'],
-                    labels={
-                        'water_temp_avg': '水温平均 (℃)',
-                        'wave_height_m':  '波高 (m)',
-                        'weather':        '天候',
-                        'count':          '釣果数',
-                    },
-                    title='天候 × 波高 × 水温 バブルチャート',
-                )
-                st.plotly_chart(fig_bubble, use_container_width=True)
-            else:
-                st.info('表示に必要なデータが不足しています。')
+        # 天候×波高×水温 バブルチャート
+        df5_bubble = df5[
+            df5['wave_height_m'].notna() &
+            df5['water_temp_avg'].notna() &
+            df5['weather'].notna()
+        ]
+        if not df5_bubble.empty:
+            fig_bubble = px.scatter(
+                df5_bubble,
+                x='water_temp_avg', y='wave_height_m',
+                size='count', color='weather',
+                hover_data=['date', 'spot', 'species'],
+                labels={
+                    'water_temp_avg': '水温平均 (℃)',
+                    'wave_height_m':  '波高 (m)',
+                    'weather':        '天候',
+                    'count':          '釣果数',
+                },
+                title='天候 × 波高 × 水温 バブルチャート',
+            )
+            st.plotly_chart(fig_bubble, use_container_width=True, config={'displayModeBar': False})
+        else:
+            st.info('表示に必要なデータが不足しています。')
 
 
