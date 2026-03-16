@@ -306,9 +306,25 @@ hr { border-color: #D5E6EF; margin: 1.2rem 0; }
         padding: 7px 10px !important;
         font-size: 0.78rem !important;
     }
-    /* Metricカードの余白縮小 */
+    /* ── columns を強制横並び ── */
+    [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        gap: 4px !important;
+    }
+    [data-testid="column"] {
+        min-width: 0 !important;
+        flex: 1 1 0 !important;
+    }
+    /* Metricカードの余白縮小・文字サイズ縮小 */
     [data-testid="metric-container"] {
-        padding: 10px 12px !important;
+        padding: 8px 6px !important;
+    }
+    [data-testid="stMetricLabel"] {
+        font-size: 0.65rem !important;
+    }
+    [data-testid="stMetricValue"] {
+        font-size: 0.95rem !important;
+        word-break: keep-all !important;
     }
     /* ボタン余白 */
     .stButton > button {
