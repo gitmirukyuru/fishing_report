@@ -772,6 +772,12 @@ def _fmt_tide_list(rows: pd.DataFrame) -> str:
 def _show_day_detail(sel_date, sel_pred, mw_row, h_wx, h_fc, h_tide, h_br, today, wdays,
                      load_ranking_fn, build_reasons_fn, species_lift_fn):
     """選択した日の詳細情報をダイアログで表示する。"""
+    import streamlit.components.v1 as _stc
+    _stc.html(
+        '<script>setTimeout(()=>{const d=window.parent.document.querySelector'
+        '("[data-testid=\'stDialogScrollArea\']");if(d)d.scrollTop=0;},30);</script>',
+        height=0, scrolling=False,
+    )
     _d = sel_date
     _wd = wdays[_d.weekday()]
     _is_today = (_d == today)
@@ -948,8 +954,6 @@ def _show_day_detail(sel_date, sel_pred, mw_row, h_wx, h_fc, h_tide, h_br, today
     else:
         st.info('AIモデルが必要です。')
 
-    if st.button('閉じる', use_container_width=True):
-        st.rerun()
 
 
 def _build_reasons(pred, wind_ms, wave_val, wt, tide_name, rising):
@@ -1178,10 +1182,200 @@ with tab0:
 
 
 # ============================================================
+# Tab 1: 釣果予測 — 詳細ダイアログ
+# ============================================================
+
+@st.dialog('📅 天気・釣果詳細', width='large')
+def _show_tab1_detail(sel_date, wx_df, tide_df, hourly_df, ai_preds,
+                      base_rates, df_all_data, location, wdays, prompt_builder_mod):
+    """天気・潮汐・AI予測をダイアログで表示する。"""
+    import streamlit.components.v1 as _stc2
+    _stc2.html(
+        '<script>setTimeout(()=>{const d=window.parent.document.querySelector'
+        '("[data-testid=\'stDialogScrollArea\']");if(d)d.scrollTop=0;},30);</script>',
+        height=0, scrolling=False,
+    )
+    d = sel_date
+    wd = wdays[d.weekday()]
+    is_today = (d == date.today())
+    today_badge = ' <span style="background:#1B8FA8;color:#fff;border-radius:6px;padding:2px 8px;font-size:0.75rem;vertical-align:middle;">今日</span>' if is_today else ''
+    st.markdown(f'<h3 style="margin:0 0 14px;">{d.month}/{d.day}（{wd}）{today_badge}</h3>', unsafe_allow_html=True)
+
+    # ── 天気サマリーカード ─────────────────────────────────────
+    wx_row = None
+    if wx_df is not None:
+        wr = wx_df[wx_df['date'] == d]
+        wx_row = wr.iloc[0] if not wr.empty else None
+
+    def _wxe2(s):
+        if not s: return ''
+        s = str(s)
+        if '雪' in s: return '❄️'
+        if '雷' in s: return '⛈️'
+        if '雨' in s and '晴' in s: return '🌦️'
+        if '雨' in s: return '🌧️'
+        if '曇' in s and '晴' in s: return '🌤️'
+        if '曇' in s: return '☁️'
+        if '晴' in s: return '☀️'
+        return ''
+
+    weather_str = str(wx_row['weather']) if wx_row is not None and pd.notna(wx_row.get('weather')) else '–'
+    temp_max = wx_row.get('temp_max') if wx_row is not None else None
+    temp_min = wx_row.get('temp_min') if wx_row is not None else None
+    sunrise  = str(wx_row['sunrise'])[:5] if wx_row is not None and pd.notna(wx_row.get('sunrise')) else '–'
+
+    hd = hourly_df[hourly_df['date'] == d] if hourly_df is not None else pd.DataFrame()
+    prec_total = round(float(hd['precipitation_mm'].sum()), 1) if not hd.empty and 'precipitation_mm' in hd.columns else None
+
+    tide_name_str = '–'
+    high_str = low_str = '–'
+    if tide_df is not None and not tide_df.empty:
+        dt = tide_df[tide_df['date'] == d]
+        if not dt.empty:
+            tn = dt['tide_name'].dropna()
+            if not tn.empty: tide_name_str = str(tn.iloc[0])
+            hi2 = dt[dt['type'] == '満潮'].sort_values('time')
+            lo2 = dt[dt['type'] == '干潮'].sort_values('time')
+            if not hi2.empty: high_str = '　'.join(f"{r['time']}({r['height_cm']}cm)" for _, r in hi2.iterrows())
+            if not lo2.empty: low_str  = '　'.join(f"{r['time']}({r['height_cm']}cm)" for _, r in lo2.iterrows())
+
+    _dc = "background:#fff;border-radius:12px;padding:clamp(10px,3vw,16px) clamp(12px,3.5vw,18px);box-shadow:0 2px 10px rgba(0,0,0,0.08);"
+    _dlb = "font-size:clamp(0.6rem,2vw,0.72rem);color:#6B7B8D;font-weight:600;letter-spacing:0.05em;margin-bottom:5px;"
+    _dvl = "font-size:clamp(0.95rem,3.5vw,1.25rem);color:#0B3D5C;font-weight:700;line-height:1.2;"
+    _tmax_str = f'<span style="color:#e74c3c;font-weight:700;">{int(temp_max)}℃</span>' if temp_max is not None else '–'
+    _tmin_str = f'<span style="color:#3498db;font-weight:700;">{int(temp_min)}℃</span>' if temp_min is not None else '–'
+    _prec_str = f'{prec_total}mm' if prec_total is not None else '–'
+
+    st.markdown(f"""
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(8px,2.5vw,12px);margin-bottom:16px;">
+  <div style="{_dc}border-left:4px solid #1B8FA8;"><div style="{_dlb}">{_wxe2(weather_str)} 天気</div><div style="{_dvl}">{weather_str}</div></div>
+  <div style="{_dc}border-left:4px solid #e74c3c;"><div style="{_dlb}">🌡️ 気温</div><div style="{_dvl}">{_tmax_str} / {_tmin_str}</div></div>
+  <div style="{_dc}border-left:4px solid #3498db;"><div style="{_dlb}">☔ 降水量</div><div style="{_dvl}">{_prec_str}</div></div>
+  <div style="{_dc}border-left:4px solid #22AECB;"><div style="{_dlb}">🌙 潮（{tide_name_str}）</div><div style="{_dvl}" style="font-size:0.82rem;">🔼 {high_str}<br>🔽 {low_str}</div></div>
+</div>
+<div style="font-size:0.78rem;color:#888;margin-bottom:14px;">🌅 日の出 {sunrise}</div>
+""", unsafe_allow_html=True)
+
+    # ── グラフ ──────────────────────────────────────────────────
+    _HOURS = [0, 6, 12, 18]
+    _XRANGE = [-3, 21]
+    _XTICKS = dict(tickvals=[0, 6, 12, 18], ticktext=['0:00', '6:00', '12:00', '18:00'])
+    _CM = dict(l=45, r=10, t=8, b=8)
+
+    ch_l, ch_r = st.columns(2)
+    with ch_l:
+        temp_pts = []
+        for hour in _HOURS:
+            slot = hd[hd['hour'] == hour] if not hd.empty else pd.DataFrame()
+            v = slot.iloc[0]['temp_c'] if not slot.empty and pd.notna(slot.iloc[0].get('temp_c')) else None
+            temp_pts.append((hour, v))
+        if any(v is not None for _, v in temp_pts):
+            xs = [h for h, v in temp_pts if v is not None]
+            ys = [v for _, v in temp_pts if v is not None]
+            fig_t = go.Figure(go.Scatter(x=xs, y=ys, mode='lines+markers',
+                line=dict(shape='spline', color='tomato', width=2),
+                marker=dict(size=7, color='tomato'), showlegend=False))
+            fig_t.update_xaxes(range=_XRANGE, showgrid=True, gridcolor='#eee', zeroline=False, **_XTICKS)
+            fig_t.update_yaxes(title_text='℃', tickformat='.0f', showgrid=True, gridcolor='#eee')
+            fig_t.update_layout(height=180, margin=_CM, plot_bgcolor='white', paper_bgcolor='white',
+                title=dict(text='気温', font_size=13, x=0.02))
+            st.plotly_chart(fig_t, use_container_width=True, config={'displayModeBar': False})
+
+    with ch_r:
+        if tide_df is not None and not tide_df.empty:
+            dtplot = tide_df[tide_df['date'] == d].copy()
+            if not dtplot.empty:
+                dtplot['height_cm'] = pd.to_numeric(dtplot['height_cm'], errors='coerce')
+                dtplot['hour_f'] = dtplot['time'].apply(
+                    lambda t: int(str(t).split(':')[0]) + int(str(t).split(':')[1]) / 60)
+                dtplot = dtplot.sort_values('hour_f')
+                fig_td = go.Figure(go.Scatter(
+                    x=dtplot['hour_f'], y=dtplot['height_cm'], mode='lines+markers',
+                    line=dict(shape='spline', color='steelblue', width=2),
+                    marker=dict(size=7, color='steelblue'),
+                    text=dtplot.apply(lambda r: f"{r['type']} {str(r['time'])[:5]} {r['height_cm']:.0f}cm", axis=1),
+                    hovertemplate='%{text}<extra></extra>', showlegend=False))
+                fig_td.update_xaxes(range=_XRANGE, showgrid=True, gridcolor='#eee', **_XTICKS)
+                fig_td.update_yaxes(title_text='cm', tickformat='.0f', showgrid=True, gridcolor='#eee')
+                fig_td.update_layout(height=180, margin=_CM, plot_bgcolor='white', paper_bgcolor='white',
+                    title=dict(text='潮位', font_size=13, x=0.02))
+                st.plotly_chart(fig_td, use_container_width=True, config={'displayModeBar': False})
+
+    # ── AI予測（7日以内の場合）──────────────────────────────────
+    ai_pred = next((p for p in ai_preds if p['date'] == d), None) if ai_preds else None
+    if ai_pred:
+        st.markdown('<hr style="margin:10px 0 14px;">', unsafe_allow_html=True)
+        st.markdown('#### 🤖 AI 釣行予測')
+        _gp = ai_pred.get('go_proba', 0)
+        _ec = ai_pred.get('expected_count', 0)
+        _sp = _species_lift_str(ai_pred.get('species_proba', {}), base_rates, top_n=2)
+        if _gp >= 0.6:
+            _vc2, _vbg2, _vt = '#1a7a4a', '#d4edda', '✅ GO — 出船できる見込みです'
+        elif _gp >= 0.4:
+            _vc2, _vbg2, _vt = '#7a5f00', '#fff3cd', '⚠️ CHECK — 条件を確認してください'
+        else:
+            _vc2, _vbg2, _vt = '#7a1c24', '#f8d7da', '✖ 条件がやや厳しい日です'
+        st.markdown(f"""
+<div style="background:{_vbg2};border-left:5px solid {_vc2};border-radius:10px;padding:14px 18px;margin-bottom:14px;">
+  <div style="font-weight:700;color:{_vc2};margin-bottom:6px;">{_vt}</div>
+  <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:0.88rem;color:#333;">
+    <span>推奨スコア <b>{_gp*100:.0f}%</b></span>
+    <span>期待釣果 <b>{_ec:.1f}匹</b></span>
+    {'<span>注目魚種 <b>' + _sp + '</b></span>' if _sp else ''}
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+        # Claude プロンプト
+        with st.expander('💬 Claude AI へのプロンプトを生成'):
+            fc_api = _load_forecast_api()
+            fc_row2 = None
+            if fc_api is not None:
+                fc_m = fc_api[fc_api['date'] == d]
+                fc_row2 = fc_m.iloc[0] if not fc_m.empty else None
+            wave_fc2 = fc_row2.get('forecast_wave_height_m') if fc_row2 is not None else None
+            recent_wt2 = (df_all_data[df_all_data['date'] >= (df_all_data['date'].max() - pd.Timedelta(days=7))]['water_temp_avg'].mean())
+            wt2 = float(recent_wt2) if pd.notna(recent_wt2) else None
+            _br2 = base_rates
+            _sp_raw2 = ai_pred.get('species_proba', {})
+            sp_rank2 = sorted([(sp, p / _br2[sp] if _br2.get(sp, 0) > 0 else 1.0) for sp, p in _sp_raw2.items()], key=lambda x: -x[1])[:3]
+            pred_weather2 = ai_pred.get('weather')
+            if not pred_weather2 and wx_row is not None and pd.notna(wx_row.get('weather')):
+                pred_weather2 = str(wx_row['weather'])
+            pred_tmax2 = ai_pred.get('temp_max') or (float(wx_row['temp_max']) if wx_row is not None and pd.notna(wx_row.get('temp_max')) else None)
+            pred_tmin2 = ai_pred.get('temp_min') or (float(wx_row['temp_min']) if wx_row is not None and pd.notna(wx_row.get('temp_min')) else None)
+            sim_mask2 = df_all_data['count'].notna()
+            if wave_fc2 is not None and pd.notna(wave_fc2):
+                sim_mask2 &= df_all_data['wave_height_m'].between(float(wave_fc2) - 0.5, float(wave_fc2) + 0.5)
+            if wt2 is not None:
+                sim_mask2 &= df_all_data['water_temp_avg'].between(wt2 - 1, wt2 + 1)
+            sim_df2 = df_all_data[sim_mask2]
+            prompt_txt = prompt_builder_mod.build_prompt(
+                target_date=d, weather=pred_weather2 or '不明',
+                temp_max=float(pred_tmax2) if pred_tmax2 is not None else None,
+                temp_min=float(pred_tmin2) if pred_tmin2 is not None else None,
+                wind_dir=ai_pred.get('wind_dir', '不明'),
+                wind_speed_ms=None,
+                wave_height_m=(float(wave_fc2) if wave_fc2 is not None and pd.notna(wave_fc2) else None),
+                water_temp_c=wt2,
+                tide_name=tide_name_str if tide_name_str != '–' else (ai_pred.get('tide_name') or '不明'),
+                rising_ratio=ai_pred.get('rising_ratio'),
+                precip_1d=ai_pred.get('precip_1d'), precip_2d=ai_pred.get('precip_2d'), precip_3d=ai_pred.get('precip_3d'),
+                predicted_count=ai_pred.get('expected_count'),
+                go_score_pct=(ai_pred.get('go_proba', 0) * 100 if ai_pred.get('go_proba') is not None else None),
+                species_rank=sp_rank2,
+                n_similar=len(sim_df2),
+                avg_count_similar=(float(sim_df2['count'].mean()) if len(sim_df2) > 0 else None),
+            )
+            st.text_area('プロンプト（コピーして claude.ai に貼り付け）', value=prompt_txt, height=260, key=f'dlg_prompt_{d}')
+            st.caption('上のテキストをコピーして https://claude.ai に貼り付けてください。')
+
+
+# ============================================================
 # Tab 1: 釣果予測
 # ============================================================
 with tab1:
-    st.subheader('釣果予測')
+    _t1_wdays = '月火水木金土日'
     location = st.radio('地点', ['串本', '白浜'], horizontal=True)
 
     with st.spinner('データ取得中...'):
@@ -1189,179 +1383,8 @@ with tab1:
         tide_df   = _load_tide(location)
         hourly_df = _load_hourly()
 
-    # ── AI 予測セクション ─────────────────────────────────────
-    st.markdown('##### 🤖 AI 釣行予測（向こう7日間）')
-
     ai_predictions = _load_ai_predictions(days=7)
-
-    if not ai_predictions:
-        st.warning('AI予測データを取得できませんでした。')
-    else:
-        # 7日間テーブル
-        ai_rows = []
-        _WEEKDAYS = '月火水木金土日'
-        _base_rates = _load_species_base_rates()
-        for pred in ai_predictions:
-            d = pred['date']
-            wd = _WEEKDAYS[d.weekday()]
-            sp_str = _species_lift_str(pred.get('species_proba', {}), _base_rates)
-            ai_rows.append({
-                '日付':               f'{d.month}/{d.day}({wd})',
-                '推奨スコア':          f"{pred.get('go_proba', 0)*100:.0f}%",
-                '期待釣果数（匹）':    pred.get('expected_count', '–'),
-                '釣れやすい魚種TOP3 (平均比)': sp_str,
-            })
-        st.dataframe(pd.DataFrame(ai_rows), use_container_width=True, hide_index=True)
-
-        # 日付選択 → 磯別ランキング + Claudeプロンプト
-        with st.expander('🏆 磯ランキング・Claude アドバイスを見る', expanded=False):
-          ai_dates = [p['date'] for p in ai_predictions]
-          selected_pred_date = st.selectbox(
-              '日付を選択',
-              options=ai_dates,
-              format_func=lambda d: f"{d.month}/{d.day}({_WEEKDAYS[d.weekday()]})",
-          )
-          selected_pred = next((p for p in ai_predictions if p['date'] == selected_pred_date), None)
-
-          st.markdown('###### 🏆 磯の期待度ランキング（上位10磯）')
-          with st.spinner('磯ランキング計算中...'):
-              rank_df = _load_spot_ranking(selected_pred_date.isoformat())
-          if rank_df.empty:
-              st.info('磯ランキングデータがありません。')
-          else:
-              rank_df_disp = rank_df.head(10).copy()
-              rank_df_disp['expected_count'] = rank_df_disp['expected_count'].round(1)
-              rank_df_disp['go_proba']       = (rank_df_disp['go_proba'] * 100).round(1)
-              rank_df_disp = rank_df_disp.rename(columns={
-                  'spot':           '釣り場',
-                  'expected_count': '期待釣果（匹）',
-                  'go_proba':       '推奨スコア（%）',
-              })
-              st.dataframe(rank_df_disp, use_container_width=True, hide_index=True)
-
-          st.markdown('###### 💬 Claude AIへのプロンプト')
-          if selected_pred is not None:
-              forecast_df_api = _load_forecast_api()
-              fc_row = None
-              if forecast_df_api is not None:
-                  fc_match = forecast_df_api[
-                      forecast_df_api['date'] == selected_pred_date
-                  ]
-                  fc_row = fc_match.iloc[0] if not fc_match.empty else None
-
-              tide_day = None
-              if tide_df is not None and not tide_df.empty:
-                  td = tide_df[tide_df['date'] == selected_pred_date]
-                  if not td.empty:
-                      tide_day = td.iloc[0].get('tide_name', '')
-
-              # 天気: predictions.json → wx_df の順で取得
-              _pred_weather  = selected_pred.get('weather')
-              _pred_temp_max = selected_pred.get('temp_max')
-              _pred_temp_min = selected_pred.get('temp_min')
-              if not _pred_weather and wx_df is not None:
-                  wd_rows = wx_df[wx_df['date'] == selected_pred_date]
-                  if not wd_rows.empty:
-                      wx_day = wd_rows.iloc[0]
-                      _pred_weather  = _pred_weather  or (str(wx_day['weather'])  if pd.notna(wx_day.get('weather'))  else None)
-                      _pred_temp_max = _pred_temp_max or (float(wx_day['temp_max']) if pd.notna(wx_day.get('temp_max')) else None)
-                      _pred_temp_min = _pred_temp_min or (float(wx_day['temp_min']) if pd.notna(wx_day.get('temp_min')) else None)
-
-              recent_wt = (
-                  df_all[df_all['date'] >= (df_all['date'].max() - pd.Timedelta(days=7))]
-                  ['water_temp_avg'].mean()
-              )
-              wt = float(recent_wt) if pd.notna(recent_wt) else None
-
-              _sp_proba_raw = selected_pred.get('species_proba', {})
-              _br = _load_species_base_rates()
-              species_rank = sorted(
-                  [
-                      (sp, p / _br[sp] if _br.get(sp, 0) > 0 else 1.0)
-                      for sp, p in _sp_proba_raw.items()
-                  ],
-                  key=lambda x: -x[1],
-              )[:3]
-              wave_fc = fc_row.get('forecast_wave_height_m') if fc_row is not None else None
-              sim_mask = df_all['count'].notna()
-              if wave_fc is not None and pd.notna(wave_fc):
-                  sim_mask &= df_all['wave_height_m'].between(
-                      float(wave_fc) - 0.5, float(wave_fc) + 0.5
-                  )
-              if wt is not None:
-                  sim_mask &= df_all['water_temp_avg'].between(wt - 1, wt + 1)
-              sim_df = df_all[sim_mask]
-
-              prompt_text = prompt_builder.build_prompt(
-                  target_date    = selected_pred_date,
-                  weather        = _pred_weather or '不明',
-                  temp_max       = float(_pred_temp_max) if _pred_temp_max is not None else None,
-                  temp_min       = float(_pred_temp_min) if _pred_temp_min is not None else None,
-                  wind_dir       = selected_pred.get('wind_dir', '不明') if hasattr(selected_pred, 'get') else '不明',
-                  wind_speed_ms  = None,
-                  wave_height_m  = (float(wave_fc) if wave_fc is not None and pd.notna(wave_fc) else None),
-                  water_temp_c   = wt,
-                  tide_name      = tide_day or selected_pred.get('tide_name') or '不明',
-                  rising_ratio   = selected_pred.get('rising_ratio'),
-                  precip_1d      = selected_pred.get('precip_1d'),
-                  precip_2d      = selected_pred.get('precip_2d'),
-                  precip_3d      = selected_pred.get('precip_3d'),
-                  predicted_count= selected_pred.get('expected_count'),
-                  go_score_pct   = (selected_pred.get('go_proba', 0) * 100
-                                    if selected_pred.get('go_proba') is not None else None),
-                  species_rank   = species_rank,
-                  n_similar      = len(sim_df),
-                  avg_count_similar = (float(sim_df['count'].mean())
-                                       if len(sim_df) > 0 else None),
-              )
-              st.text_area('プロンプト（コピーして claude.ai に貼り付け）',
-                           value=prompt_text, height=300,
-                           key='ai_prompt_text')
-              st.caption('上のテキストをコピーして https://claude.ai に貼り付けてください。')
-
-    st.markdown('---')
-
-    # ── ルールベース 参考テーブル ─────────────────────────────
-    with st.expander('📊 ルールベース釣果スコア（参考）', expanded=False):
-        forecast_df_rb = _load_forecast_api()
-        if forecast_df_rb is None:
-            st.warning('Open-Meteo API に接続できませんでした。')
-        else:
-            recent_temp = df_all[
-                df_all['date'] >= (df_all['date'].max() - pd.Timedelta(days=30))
-            ]['water_temp_avg'].mean()
-
-            rb_rows = []
-            for _, fc in forecast_df_rb.iterrows():
-                wave     = fc.get('forecast_wave_height_m')
-                temp_ref = recent_temp if pd.notna(recent_temp) else None
-
-                mask = pd.Series([True] * len(df_all), index=df_all.index)
-                if pd.notna(wave):
-                    mask &= df_all['wave_height_m'].between(wave - 0.5, wave + 0.5)
-                if temp_ref is not None:
-                    mask &= df_all['water_temp_avg'].between(temp_ref - 1, temp_ref + 1)
-
-                matched = df_all[mask & df_all['count'].notna()]
-                score = (f"{matched['count'].mean():.1f} 匹 (n={len(matched)})"
-                         if len(matched) >= 3 else 'データ不足')
-
-                rb_rows.append({
-                    '日付':          str(fc['date']),
-                    '天気コード':     fc.get('forecast_weather_code'),
-                    '最大波高(m)':    wave,
-                    '最高気温(℃)':   fc.get('forecast_temp_max'),
-                    '期待釣果スコア': score,
-                })
-
-            st.dataframe(pd.DataFrame(rb_rows), use_container_width=True)
-
-    st.markdown('---')
-
-    # ── 日別天気・潮汐詳細エキスパンダー ──────────────────────
-    st.markdown('##### 🗓️ 天気・潮汐詳細（14日間）')
-    if location == '白浜':
-        st.caption('※ 白浜の潮汐は最寄港「田辺」のデータを表示しています。')
+    _t1_base_rates = _load_species_base_rates()
 
     if wx_df is None and hourly_df is None:
         st.warning('天気データを取得できませんでした。')
@@ -1371,121 +1394,13 @@ with tab1:
             (list(hourly_df['date'].unique()) if hourly_df is not None else [])
         ))
 
-        _WEEKDAYS = '月火水木金土日'
-        _HOURS = [0, 6, 12, 18]
-        _XRANGE = [-3, 21]
-        _XTICKS = dict(tickvals=[0, 6, 12, 18],
-                       ticktext=['0:00', '6:00', '12:00', '18:00'])
-        _CHART_MARGIN = dict(l=45, r=10, t=8, b=8)
+        if location == '白浜':
+            st.caption('※ 白浜の潮汐は最寄港「田辺」のデータを表示しています。')
 
-        def _build_day_info(d):
-            """1日分のテキスト情報をまとめて返す（チャートは含まない）。"""
-            if wx_df is not None:
-                day_rows_ = wx_df[wx_df['date'] == d]
-                day_wx_   = day_rows_.iloc[0] if not day_rows_.empty else None
-            else:
-                day_rows_ = pd.DataFrame()
-                day_wx_   = None
+        # ── 天気・潮汐リスト（メイン：行タップで詳細）─────────────────
+        st.caption('「詳細」をタップすると気温・潮位グラフとAI予測を確認できます')
 
-            weather_label_ = (str(day_wx_['weather'])
-                               if day_wx_ is not None and pd.notna(day_wx_.get('weather')) else '')
-            temp_max_ = day_wx_.get('temp_max') if day_wx_ is not None else None
-            temp_min_ = day_wx_.get('temp_min') if day_wx_ is not None else None
-            sunrise_  = (str(day_wx_['sunrise'])
-                         if day_wx_ is not None and pd.notna(day_wx_.get('sunrise')) else '')
-
-            tide_name_str_ = ''
-            high_str_ = low_str_ = ''
-            if tide_df is not None and not tide_df.empty:
-                day_tide_   = tide_df[tide_df['date'] == d]
-                high_tides_ = day_tide_[day_tide_['type'] == '満潮'].sort_values('time')
-                low_tides_  = day_tide_[day_tide_['type'] == '干潮'].sort_values('time')
-                high_str_   = _fmt_tide_list(high_tides_)
-                low_str_    = _fmt_tide_list(low_tides_)
-                tn_ = day_tide_['tide_name'].dropna()
-                tide_name_str_ = str(tn_.iloc[0]) if not tn_.empty else ''
-
-            return day_rows_, day_wx_, weather_label_, temp_max_, temp_min_, sunrise_, \
-                   tide_name_str_, high_str_, low_str_
-
-        # ── 詳細グラフ（選択した1日分のみ描画）────────────────
-        detail_col, _ = st.columns([1, 2])
-        with detail_col:
-            selected_detail_date = st.selectbox(
-                '📈 詳細グラフを表示する日',
-                options=dates,
-                format_func=lambda d: f"{d.month}/{d.day}({_WEEKDAYS[d.weekday()]})",
-                key='detail_date_select',
-            )
-
-        det_rows, det_wx, det_weather, det_tmax, det_tmin, det_sunrise, \
-            det_tidename, det_high, det_low = _build_day_info(selected_detail_date)
-
-        det_hourly = (hourly_df[hourly_df['date'] == selected_detail_date]
-                      if hourly_df is not None else pd.DataFrame())
-
-        ch_left, ch_right = st.columns(2)
-
-        with ch_left:
-            # 気温グラフ
-            temp_pts = []
-            for hour in _HOURS:
-                slot = (det_hourly[det_hourly['hour'] == hour]
-                        if not det_hourly.empty else pd.DataFrame())
-                v = slot.iloc[0]['temp_c'] if not slot.empty and pd.notna(slot.iloc[0].get('temp_c')) else None
-                temp_pts.append((hour, v))
-            if any(v is not None for _, v in temp_pts):
-                xs = [h for h, v in temp_pts if v is not None]
-                ys = [v for _, v in temp_pts if v is not None]
-                fig_t = go.Figure(go.Scatter(
-                    x=xs, y=ys, mode='lines+markers',
-                    line=dict(shape='spline', color='tomato', width=2),
-                    marker=dict(size=7, color='tomato'), showlegend=False,
-                ))
-                fig_t.update_xaxes(range=_XRANGE, showticklabels=True,
-                                   showgrid=True, gridcolor='#eee', zeroline=False, **_XTICKS)
-                fig_t.update_yaxes(title_text='℃', tickformat='.0f',
-                                   showgrid=True, gridcolor='#eee')
-                fig_t.update_layout(height=180, margin=_CHART_MARGIN,
-                                    plot_bgcolor='white', paper_bgcolor='white',
-                                    title=dict(text='気温', font_size=13, x=0.02))
-                st.plotly_chart(fig_t, use_container_width=True, config={'displayModeBar': False})
-
-        with ch_right:
-            # 潮汐グラフ
-            if tide_df is not None and not tide_df.empty:
-                day_tide_plot = tide_df[tide_df['date'] == selected_detail_date].copy()
-                if not day_tide_plot.empty:
-                    day_tide_plot['height_cm'] = pd.to_numeric(
-                        day_tide_plot['height_cm'], errors='coerce')
-                    day_tide_plot['hour_f'] = day_tide_plot['time'].apply(
-                        lambda t: int(str(t).split(':')[0]) + int(str(t).split(':')[1]) / 60
-                    )
-                    day_tide_plot = day_tide_plot.sort_values('hour_f')
-                    fig_td = go.Figure(go.Scatter(
-                        x=day_tide_plot['hour_f'], y=day_tide_plot['height_cm'],
-                        mode='lines+markers',
-                        line=dict(shape='spline', color='steelblue', width=2),
-                        marker=dict(size=7, color='steelblue'),
-                        text=day_tide_plot.apply(
-                            lambda r: f"{r['type']} {str(r['time'])[:5]} {r['height_cm']:.0f}cm",
-                            axis=1,
-                        ),
-                        hovertemplate='%{text}<extra></extra>', showlegend=False,
-                    ))
-                    fig_td.update_xaxes(range=_XRANGE, showgrid=True,
-                                        gridcolor='#eee', **_XTICKS)
-                    fig_td.update_yaxes(title_text='cm', tickformat='.0f',
-                                        showgrid=True, gridcolor='#eee')
-                    fig_td.update_layout(height=180, margin=_CHART_MARGIN,
-                                         plot_bgcolor='white', paper_bgcolor='white',
-                                         title=dict(text='潮位', font_size=13, x=0.02))
-                    st.plotly_chart(fig_td, use_container_width=True, config={'displayModeBar': False})
-
-        st.markdown('---')
-
-        # ── 天気テーブル（HTML アコーディオン / タップで時間帯展開）──
-        def _wxe(s):
+        def _wxe_t1(s):
             if not s: return ''
             s = str(s)
             if '雪' in s: return '❄️'
@@ -1495,113 +1410,61 @@ with tab1:
             if '曇' in s and '晴' in s: return '🌤️'
             if '曇' in s: return '☁️'
             if '晴' in s: return '☀️'
-            return ''
+            return '🌈'
 
-        def _hv(df_, hour_, col_, fmt='{}'):
-            r_ = df_[df_['hour'] == hour_] if not df_.empty else pd.DataFrame()
-            if r_.empty or not pd.notna(r_.iloc[0].get(col_)):
-                return '–'
-            return fmt.format(r_.iloc[0][col_])
-
-        _wx_css = """<style>
-.wxw{font-size:.88rem;color:#1C3448;border-radius:10px;overflow:hidden;
-     box-shadow:0 2px 12px rgba(0,0,0,.07);margin-bottom:12px}
-.wxh{display:grid;grid-template-columns:80px 1fr 80px 60px;background:#E2EBF3;
-     padding:8px 12px;font-size:.72rem;font-weight:600;color:#555;gap:4px}
-.wxt{display:none}
-.wxrw{border-bottom:1px solid #ECF1F7;background:#fff}
-.wxr{display:grid;grid-template-columns:80px 1fr 80px 60px;padding:10px 12px;
-     cursor:pointer;align-items:center;transition:background .15s;user-select:none;gap:4px}
-.wxr:hover{background:#F2F8FF}
-.wxrt{display:grid;grid-template-columns:80px 1fr 80px 60px;padding:10px 12px;
-      cursor:pointer;align-items:center;transition:background .15s;user-select:none;
-      gap:4px;background:#FFFBE8}
-.wxrt:hover{background:#FFF3C0}
-.wxt:checked+.wxr{background:#EAF4FF}
-.wxt:checked+.wxrt{background:#FFF3C0}
-.wxt:checked~.wxd{display:block}
-.wxd{display:none;padding:8px 12px 14px;background:#F8FBFF;border-top:1px solid #DDE8F5}
-.thi{color:#e74c3c;font-weight:700}.tlo{color:#3498db}
-.wxchv{color:#aaa;font-size:.7rem;transition:transform .2s;display:inline-block}
-.wxt:checked+.wxr .wxchv,.wxt:checked+.wxrt .wxchv{transform:rotate(90deg)}
-.wxhg{display:grid;grid-template-columns:56px repeat(4,1fr);font-size:.76rem;
-      gap:1px;overflow-x:auto;min-width:260px}
-.wxhl{color:#888;font-weight:600;padding:3px 2px;white-space:nowrap}
-.wxhv{text-align:center;padding:3px 2px}
-.wxhh{text-align:center;font-weight:700;color:#0B3D5C;padding:4px 2px;
-      border-bottom:1px solid #DDE8F5}
-.wxtl{margin-top:8px;font-size:.76rem;color:#555;padding-top:6px;
-      border-top:1px solid #DDE8F5}
-</style>"""
-
-        _today_d = date.today()
-        _rows_html = ''
-        for _wi, _wd_date in enumerate(dates):
-            _wr_rows = wx_df[wx_df['date'] == _wd_date] if wx_df is not None else pd.DataFrame()
+        _today_t1 = date.today()
+        for _ti, _td in enumerate(dates):
+            _wr_rows = wx_df[wx_df['date'] == _td] if wx_df is not None else pd.DataFrame()
             _wr = _wr_rows.iloc[0] if not _wr_rows.empty else None
             _wx_str = str(_wr['weather']) if _wr is not None and pd.notna(_wr.get('weather')) else '–'
-            _wx_em  = _wxe(_wx_str)
             _tmax_v = _wr['temp_max'] if _wr is not None and pd.notna(_wr.get('temp_max')) else None
             _tmin_v = _wr['temp_min'] if _wr is not None and pd.notna(_wr.get('temp_min')) else None
-            _sun_v  = str(_wr['sunrise'])[:5] if _wr is not None and pd.notna(_wr.get('sunrise')) else ''
+            _hd_day = hourly_df[hourly_df['date'] == _td] if hourly_df is not None else pd.DataFrame()
+            _prec_v = round(float(_hd_day['precipitation_mm'].sum()), 1) if not _hd_day.empty and 'precipitation_mm' in _hd_day.columns else None
 
-            _hd   = hourly_df[hourly_df['date'] == _wd_date] if hourly_df is not None else pd.DataFrame()
-            _wx_d = wx_df[wx_df['date'] == _wd_date]         if wx_df is not None    else pd.DataFrame()
-            _prec_total = round(float(_hd['precipitation_mm'].sum()), 1) if not _hd.empty else None
+            _tn_rows = tide_df[(tide_df['date'] == _td) & tide_df['tide_name'].notna()] if tide_df is not None and not tide_df.empty else pd.DataFrame()
+            _tide_n  = str(_tn_rows.iloc[0]['tide_name']) if not _tn_rows.empty else ''
 
-            _wday  = _WEEKDAYS[_wd_date.weekday()]
-            _is_td = (_wd_date == _today_d)
-            _tmax_h = f'<span class="thi">{int(_tmax_v)}</span>' if _tmax_v is not None else '–'
-            _tmin_h = f'<span class="tlo">{int(_tmin_v)}</span>' if _tmin_v is not None else '–'
-            _prec_h = f'{_prec_total}mm' if _prec_total is not None else '–'
-            _dstr   = f'{_wd_date.month}/{_wd_date.day}({_wday})'
-            if _is_td:
-                _dstr += '<br><small style="color:#e07b00;font-weight:700;">★今日</small>'
-            _row_cls = 'wxrt' if _is_td else 'wxr'
+            _is_today_t1 = (_td == _today_t1)
+            _has_ai = any(p['date'] == _td for p in ai_predictions) if ai_predictions else False
+            _wd_str = _t1_wdays[_td.weekday()]
+            _dstr = f"{_td.month}/{_td.day}（{_wd_str}）" + (" ⭐今日" if _is_today_t1 else "")
 
-            _hh  = ''.join(f'<div class="wxhh">{h:02d}:00</div>' for h in _HOURS)
-            _hw  = ''.join(f'<div class="wxhv">{_wxe(_hv(_hd, h, "weather_text")) or _hv(_hd, h, "weather_text")}</div>' for h in _HOURS)
-            _ht  = ''.join(f'<div class="wxhv">{_hv(_hd,   h, "temp_c",           "{:.0f}℃")}</div>'   for h in _HOURS)
-            _hm  = ''.join(f'<div class="wxhv">{_hv(_wx_d, h, "humidity",         "{:.0f}%")}</div>'   for h in _HOURS)
-            _hwi = ''.join(f'<div class="wxhv">{_hv(_hd,   h, "wind_dir")} {_hv(_hd, h, "wind_speed_ms", "{:.0f}m/s")}</div>' for h in _HOURS)
-            _hp  = ''.join(f'<div class="wxhv">{_hv(_hd,   h, "precipitation_mm", "{:.1f}mm")}</div>'  for h in _HOURS)
+            _tmax_h = f'<span style="color:#e74c3c;font-weight:700;">{int(_tmax_v)}℃</span>' if _tmax_v is not None else ''
+            _tmin_h = f'<span style="color:#3498db;">{int(_tmin_v)}℃</span>' if _tmin_v is not None else ''
+            _temp_h = f'{_tmax_h} / {_tmin_h}' if _tmax_h or _tmin_h else '–'
+            _prec_h = f'☔ {_prec_v}mm' if _prec_v is not None else ''
+            _tide_h = f'🌙 {_tide_n}' if _tide_n else ''
+            _ai_badge = '<span style="background:#1B8FA8;color:#fff;border-radius:4px;padding:1px 6px;font-size:0.7rem;margin-left:4px;">AI</span>' if _has_ai else ''
 
-            _tide_html = ''
-            if tide_df is not None and not tide_df.empty:
-                _dt = tide_df[tide_df['date'] == _wd_date]
-                if not _dt.empty:
-                    _tn = _dt['tide_name'].dropna()
-                    _tp = []
-                    if not _tn.empty: _tp.append(f'🌙 {_tn.iloc[0]}')
-                    _hi2 = _dt[_dt['type'] == '満潮'].sort_values('time')
-                    _lo2 = _dt[_dt['type'] == '干潮'].sort_values('time')
-                    if not _hi2.empty: _tp.append('🌊 満潮 ' + '　'.join(f"{r['time']}({r['height_cm']}cm)" for _, r in _hi2.iterrows()))
-                    if not _lo2.empty: _tp.append('↓ 干潮 ' + '　'.join(f"{r['time']}({r['height_cm']}cm)" for _, r in _lo2.iterrows()))
-                    if _sun_v: _tp.append(f'🌅 日の出 {_sun_v}')
-                    if _tp: _tide_html = f'<div class="wxtl">{"　".join(_tp)}</div>'
+            _row_bg = '#FFFBE8' if _is_today_t1 else '#fff'
+            _row_bl = '#e07b00' if _is_today_t1 else '#1B8FA8'
 
-            _det = (f'<div class="wxhg">'
-                    f'<div class="wxhl"></div>{_hh}'
-                    f'<div class="wxhl">天気</div>{_hw}'
-                    f'<div class="wxhl">気温</div>{_ht}'
-                    f'<div class="wxhl">湿度</div>{_hm}'
-                    f'<div class="wxhl">風</div>{_hwi}'
-                    f'<div class="wxhl">降水量</div>{_hp}'
-                    f'</div>{_tide_html}')
-
-            _rows_html += (f'<div class="wxrw">'
-                           f'<input type="checkbox" id="wxc{_wi}" class="wxt">'
-                           f'<label for="wxc{_wi}" class="{_row_cls}">'
-                           f'<div>{_dstr}</div><div>{_wx_em} {_wx_str}</div>'
-                           f'<div style="text-align:center">{_tmax_h} / {_tmin_h}</div>'
-                           f'<div style="text-align:right">{_prec_h} <span class="wxchv">▶</span></div>'
-                           f'</label><div class="wxd">{_det}</div></div>')
-
-        _hdr = ('<div class="wxh"><span>日付</span><span>天気</span>'
-                '<span style="text-align:center">気温(℃)</span>'
-                '<span style="text-align:right">降水量</span></div>')
-        st.markdown(f'{_wx_css}<div class="wxw">{_hdr}{_rows_html}</div>',
-                    unsafe_allow_html=True)
+            _col_row, _col_dbtn = st.columns([6, 1])
+            with _col_row:
+                st.markdown(f"""
+<div style="background:{_row_bg};border-left:4px solid {_row_bl};border-radius:10px;
+     padding:11px 14px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
+  <span style="font-size:1.3rem;">{_wxe_t1(_wx_str)}</span>
+  <span style="font-weight:600;color:#0B3D5C;flex:1;min-width:100px;">{_dstr}{_ai_badge}</span>
+  <span style="font-size:0.88rem;">{_temp_h}</span>
+  <span style="color:#555;font-size:0.82rem;">{_prec_h}</span>
+  <span style="color:#555;font-size:0.82rem;">{_tide_h}</span>
+</div>""", unsafe_allow_html=True)
+            with _col_dbtn:
+                if st.button('詳細', key=f't1_detail_{_ti}', use_container_width=True):
+                    _show_tab1_detail(
+                        sel_date=_td,
+                        wx_df=wx_df,
+                        tide_df=tide_df,
+                        hourly_df=hourly_df,
+                        ai_preds=ai_predictions or [],
+                        base_rates=_t1_base_rates,
+                        df_all_data=df_all,
+                        location=location,
+                        wdays=_t1_wdays,
+                        prompt_builder_mod=prompt_builder,
+                    )
 
 
 # ============================================================
