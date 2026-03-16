@@ -158,6 +158,44 @@ html, body, .stApp {
     color: #1C3448 !important;
 }
 
+/* ── 行タップカード（day-row-marker の直後ボタンをカード化）── */
+[data-testid="element-container"]:has(.day-row-marker) + [data-testid="element-container"] button {
+    text-align: left !important;
+    background: #fff !important;
+    border: none !important;
+    border-left: 4px solid #1B8FA8 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+    padding: 12px 16px !important;
+    white-space: pre-line !important;
+    font-size: 0.88rem !important;
+    line-height: 1.6 !important;
+    color: #0B3D5C !important;
+    min-height: auto !important;
+    transition: background 0.15s, box-shadow 0.15s !important;
+}
+[data-testid="element-container"]:has(.day-row-marker) + [data-testid="element-container"] button:hover {
+    background: #eef6ff !important;
+    box-shadow: 0 4px 14px rgba(27,143,168,0.12) !important;
+}
+/* 判定別カラー */
+[data-testid="element-container"]:has(.drm-go) + [data-testid="element-container"] button {
+    border-left-color: #1a7a4a !important;
+    background: #f4fbf6 !important;
+}
+[data-testid="element-container"]:has(.drm-check) + [data-testid="element-container"] button {
+    border-left-color: #7a5f00 !important;
+    background: #fffbe6 !important;
+}
+[data-testid="element-container"]:has(.drm-stop) + [data-testid="element-container"] button {
+    border-left-color: #7a1c24 !important;
+    background: #fdf0f0 !important;
+}
+[data-testid="element-container"]:has(.drm-today) + [data-testid="element-container"] button {
+    border-left-color: #e07b00 !important;
+    background: #FFFBE8 !important;
+}
+
 /* ── ボタン ── */
 .stButton > button {
     background: linear-gradient(135deg, #1B8FA8 0%, #0B3D5C 100%) !important;
@@ -1100,19 +1138,11 @@ with tab0:
             _today_mark = ' ⭐今日' if _d == _today else ''
             _date_str = f"{_d.month}/{_d.day}（{_wd}）{_today_mark}"
 
-            _col_main, _col_btn = st.columns([6, 1])
-            with _col_main:
-                st.markdown(f"""
-<div style="background:{_vbg2};border-left:4px solid {_vc2};border-radius:10px;
-     padding:12px 16px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
-  <span style="font-weight:700;color:{_vc2};min-width:72px;">{_vs}</span>
-  <span style="font-weight:600;color:#0B3D5C;flex:1;min-width:90px;">{_date_str}</span>
-  <span style="color:#555;font-size:0.85rem;">{_mw_str}</span>
-  <span style="color:#1B8FA8;font-weight:700;font-size:0.9rem;">{_gp*100:.0f}%</span>
-  <span style="color:#e07b39;font-weight:600;font-size:0.85rem;">{_ec:.1f}匹</span>
-</div>""", unsafe_allow_html=True)
-            with _col_btn:
-                if st.button('詳細', key=f'detail_{_idx}', use_container_width=True):
+            _drm_cls = 'drm-stop' if '✖' in _vs else ('drm-check' if '⚠' in _vs else 'drm-go')
+            _drm_today_cls = ' drm-today' if _d == _today else ''
+            _btn_label = f"{_vs}  {_date_str}\n{_mw_str}  出船スコア {_gp*100:.0f}%  期待 {_ec:.1f}匹"
+            st.markdown(f'<span class="day-row-marker {_drm_cls}{_drm_today_cls}"></span>', unsafe_allow_html=True)
+            if st.button(_btn_label, key=f'detail_{_idx}', use_container_width=True):
                     _show_day_detail(
                         sel_date=_d,
                         sel_pred=next((p for p in _h_ai if p['date'] == _d), None),
@@ -1201,7 +1231,7 @@ def _show_tab1_detail(sel_date, wx_df, tide_df, hourly_df, ai_preds,
     today_badge = ' <span style="background:#1B8FA8;color:#fff;border-radius:6px;padding:2px 8px;font-size:0.75rem;vertical-align:middle;">今日</span>' if is_today else ''
     st.markdown(f'<h3 style="margin:0 0 14px;">{d.month}/{d.day}（{wd}）{today_badge}</h3>', unsafe_allow_html=True)
 
-    # ── 天気サマリーカード ─────────────────────────────────────
+    # ── データ準備 ────────────────────────────────────────────
     wx_row = None
     if wx_df is not None:
         wr = wx_df[wx_df['date'] == d]
@@ -1239,29 +1269,85 @@ def _show_tab1_detail(sel_date, wx_df, tide_df, hourly_df, ai_preds,
             if not hi2.empty: high_str = '　'.join(f"{r['time']}({r['height_cm']}cm)" for _, r in hi2.iterrows())
             if not lo2.empty: low_str  = '　'.join(f"{r['time']}({r['height_cm']}cm)" for _, r in lo2.iterrows())
 
+    ai_pred = next((p for p in ai_preds if p['date'] == d), None) if ai_preds else None
+
+    _HOURS = [0, 6, 12, 18]
+    _XRANGE = [-3, 21]
+    _XTICKS = dict(tickvals=[0, 6, 12, 18], ticktext=['0:00', '6:00', '12:00', '18:00'])
+    _CM = dict(l=45, r=10, t=8, b=8)
+
+    def _hv_d(hour_, col_, fmt='{}'):
+        r_ = hd[hd['hour'] == hour_] if not hd.empty else pd.DataFrame()
+        if r_.empty or not pd.notna(r_.iloc[0].get(col_)):
+            return '–'
+        return fmt.format(r_.iloc[0][col_])
+
+    # ── 1. AI釣行予測（7日以内の場合）──────────────────────────
+    if ai_pred:
+        _gp = ai_pred.get('go_proba', 0)
+        _ec = ai_pred.get('expected_count', 0)
+        _sp = _species_lift_str(ai_pred.get('species_proba', {}), base_rates, top_n=2)
+        if _gp >= 0.6:
+            _vc2, _vbg2, _vt = '#1a7a4a', '#d4edda', '✅ GO — 出船できる見込みです'
+        elif _gp >= 0.4:
+            _vc2, _vbg2, _vt = '#7a5f00', '#fff3cd', '⚠️ CHECK — 条件を確認してください'
+        else:
+            _vc2, _vbg2, _vt = '#7a1c24', '#f8d7da', '✖ 条件がやや厳しい日です'
+        st.markdown(f"""
+<div style="background:{_vbg2};border-left:5px solid {_vc2};border-radius:10px;padding:14px 18px;margin-bottom:16px;">
+  <div style="font-weight:700;color:{_vc2};margin-bottom:6px;">{_vt}</div>
+  <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:0.88rem;color:#333;">
+    <span>推奨スコア <b>{_gp*100:.0f}%</b></span>
+    <span>期待釣果 <b>{_ec:.1f}匹</b></span>
+    {'<span>注目魚種 <b>' + _sp + '</b></span>' if _sp else ''}
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+    # ── 2. 天気・気温・降水・潮 カード ──────────────────────────
     _dc = "background:#fff;border-radius:12px;padding:clamp(10px,3vw,16px) clamp(12px,3.5vw,18px);box-shadow:0 2px 10px rgba(0,0,0,0.08);"
     _dlb = "font-size:clamp(0.6rem,2vw,0.72rem);color:#6B7B8D;font-weight:600;letter-spacing:0.05em;margin-bottom:5px;"
     _dvl = "font-size:clamp(0.95rem,3.5vw,1.25rem);color:#0B3D5C;font-weight:700;line-height:1.2;"
     _tmax_str = f'<span style="color:#e74c3c;font-weight:700;">{int(temp_max)}℃</span>' if temp_max is not None else '–'
     _tmin_str = f'<span style="color:#3498db;font-weight:700;">{int(temp_min)}℃</span>' if temp_min is not None else '–'
     _prec_str = f'{prec_total}mm' if prec_total is not None else '–'
-
     st.markdown(f"""
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(8px,2.5vw,12px);margin-bottom:16px;">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(8px,2.5vw,12px);margin-bottom:12px;">
   <div style="{_dc}border-left:4px solid #1B8FA8;"><div style="{_dlb}">{_wxe2(weather_str)} 天気</div><div style="{_dvl}">{weather_str}</div></div>
   <div style="{_dc}border-left:4px solid #e74c3c;"><div style="{_dlb}">🌡️ 気温</div><div style="{_dvl}">{_tmax_str} / {_tmin_str}</div></div>
-  <div style="{_dc}border-left:4px solid #3498db;"><div style="{_dlb}">☔ 降水量</div><div style="{_dvl}">{_prec_str}</div></div>
-  <div style="{_dc}border-left:4px solid #22AECB;"><div style="{_dlb}">🌙 潮（{tide_name_str}）</div><div style="{_dvl}" style="font-size:0.82rem;">🔼 {high_str}<br>🔽 {low_str}</div></div>
+  <div style="{_dc}border-left:4px solid #3498db;"><div style="{_dlb}">☔ 降水量（日計）</div><div style="{_dvl}">{_prec_str}</div></div>
+  <div style="{_dc}border-left:4px solid #22AECB;"><div style="{_dlb}">🌙 潮（{tide_name_str}）</div>
+    <div style="font-size:0.8rem;color:#0B3D5C;margin-top:2px;">🔼 {high_str}</div>
+    <div style="font-size:0.8rem;color:#0B3D5C;">🔽 {low_str}</div></div>
 </div>
 <div style="font-size:0.78rem;color:#888;margin-bottom:14px;">🌅 日の出 {sunrise}</div>
 """, unsafe_allow_html=True)
 
-    # ── グラフ ──────────────────────────────────────────────────
-    _HOURS = [0, 6, 12, 18]
-    _XRANGE = [-3, 21]
-    _XTICKS = dict(tickvals=[0, 6, 12, 18], ticktext=['0:00', '6:00', '12:00', '18:00'])
-    _CM = dict(l=45, r=10, t=8, b=8)
+    # ── 3. 6時間ごとの詳細 ────────────────────────────────────
+    _cell = "text-align:center;padding:4px 2px;font-size:0.76rem;"
+    _hdr  = "text-align:center;font-weight:700;color:#0B3D5C;padding:4px 2px;font-size:0.76rem;border-bottom:1px solid #DDE8F5;"
+    _lbl  = "color:#888;font-weight:600;padding:4px 2px;font-size:0.76rem;white-space:nowrap;"
+    _hh_cells  = ''.join(f'<div style="{_hdr}">{h:02d}:00</div>' for h in _HOURS)
+    _hw_cells  = ''.join(f'<div style="{_cell}">{_wxe2(_hv_d(h,"weather_text")) or _hv_d(h,"weather_text")}</div>' for h in _HOURS)
+    _ht_cells  = ''.join(f'<div style="{_cell}">{_hv_d(h,"temp_c","{:.0f}℃")}</div>'          for h in _HOURS)
+    _hm_cells  = ''.join(f'<div style="{_cell}">{_hv_d(h,"humidity","{:.0f}%")}</div>'         for h in _HOURS)
+    _hwi_cells = ''.join(f'<div style="{_cell}">{_hv_d(h,"wind_dir")} {_hv_d(h,"wind_speed_ms","{:.0f}m/s")}</div>' for h in _HOURS)
+    _hp_cells  = ''.join(f'<div style="{_cell}">{_hv_d(h,"precipitation_mm","{:.1f}mm")}</div>' for h in _HOURS)
+    st.markdown(f"""
+<div style="overflow-x:auto;margin-bottom:16px;background:#F8FBFF;border-radius:10px;padding:10px 12px;">
+<div style="display:grid;grid-template-columns:52px repeat(4,1fr);gap:2px;min-width:260px;">
+  <div style="{_lbl}">時刻</div>{_hh_cells}
+  <div style="{_lbl}">天気</div>{_hw_cells}
+  <div style="{_lbl}">気温</div>{_ht_cells}
+  <div style="{_lbl}">湿度</div>{_hm_cells}
+  <div style="{_lbl}">風</div>{_hwi_cells}
+  <div style="{_lbl}">降水</div>{_hp_cells}
+</div>
+</div>
+""", unsafe_allow_html=True)
 
+    # ── 4. グラフ（ズーム・パン無効）──────────────────────────
+    _cfg = {'displayModeBar': False, 'scrollZoom': False, 'staticPlot': False}
     ch_l, ch_r = st.columns(2)
     with ch_l:
         temp_pts = []
@@ -1275,11 +1361,13 @@ def _show_tab1_detail(sel_date, wx_df, tide_df, hourly_df, ai_preds,
             fig_t = go.Figure(go.Scatter(x=xs, y=ys, mode='lines+markers',
                 line=dict(shape='spline', color='tomato', width=2),
                 marker=dict(size=7, color='tomato'), showlegend=False))
-            fig_t.update_xaxes(range=_XRANGE, showgrid=True, gridcolor='#eee', zeroline=False, **_XTICKS)
-            fig_t.update_yaxes(title_text='℃', tickformat='.0f', showgrid=True, gridcolor='#eee')
+            fig_t.update_xaxes(range=_XRANGE, showgrid=True, gridcolor='#eee', zeroline=False,
+                fixedrange=True, **_XTICKS)
+            fig_t.update_yaxes(title_text='℃', tickformat='.0f', showgrid=True, gridcolor='#eee',
+                fixedrange=True)
             fig_t.update_layout(height=180, margin=_CM, plot_bgcolor='white', paper_bgcolor='white',
-                title=dict(text='気温', font_size=13, x=0.02))
-            st.plotly_chart(fig_t, use_container_width=True, config={'displayModeBar': False})
+                title=dict(text='気温', font_size=13, x=0.02), dragmode=False)
+            st.plotly_chart(fig_t, use_container_width=True, config=_cfg)
 
     with ch_r:
         if tide_df is not None and not tide_df.empty:
@@ -1295,38 +1383,16 @@ def _show_tab1_detail(sel_date, wx_df, tide_df, hourly_df, ai_preds,
                     marker=dict(size=7, color='steelblue'),
                     text=dtplot.apply(lambda r: f"{r['type']} {str(r['time'])[:5]} {r['height_cm']:.0f}cm", axis=1),
                     hovertemplate='%{text}<extra></extra>', showlegend=False))
-                fig_td.update_xaxes(range=_XRANGE, showgrid=True, gridcolor='#eee', **_XTICKS)
-                fig_td.update_yaxes(title_text='cm', tickformat='.0f', showgrid=True, gridcolor='#eee')
+                fig_td.update_xaxes(range=_XRANGE, showgrid=True, gridcolor='#eee',
+                    fixedrange=True, **_XTICKS)
+                fig_td.update_yaxes(title_text='cm', tickformat='.0f', showgrid=True, gridcolor='#eee',
+                    fixedrange=True)
                 fig_td.update_layout(height=180, margin=_CM, plot_bgcolor='white', paper_bgcolor='white',
-                    title=dict(text='潮位', font_size=13, x=0.02))
-                st.plotly_chart(fig_td, use_container_width=True, config={'displayModeBar': False})
+                    title=dict(text='潮位', font_size=13, x=0.02), dragmode=False)
+                st.plotly_chart(fig_td, use_container_width=True, config=_cfg)
 
-    # ── AI予測（7日以内の場合）──────────────────────────────────
-    ai_pred = next((p for p in ai_preds if p['date'] == d), None) if ai_preds else None
+    # ── 5. Claudeプロンプト（AI予測ありの場合）─────────────────
     if ai_pred:
-        st.markdown('<hr style="margin:10px 0 14px;">', unsafe_allow_html=True)
-        st.markdown('#### 🤖 AI 釣行予測')
-        _gp = ai_pred.get('go_proba', 0)
-        _ec = ai_pred.get('expected_count', 0)
-        _sp = _species_lift_str(ai_pred.get('species_proba', {}), base_rates, top_n=2)
-        if _gp >= 0.6:
-            _vc2, _vbg2, _vt = '#1a7a4a', '#d4edda', '✅ GO — 出船できる見込みです'
-        elif _gp >= 0.4:
-            _vc2, _vbg2, _vt = '#7a5f00', '#fff3cd', '⚠️ CHECK — 条件を確認してください'
-        else:
-            _vc2, _vbg2, _vt = '#7a1c24', '#f8d7da', '✖ 条件がやや厳しい日です'
-        st.markdown(f"""
-<div style="background:{_vbg2};border-left:5px solid {_vc2};border-radius:10px;padding:14px 18px;margin-bottom:14px;">
-  <div style="font-weight:700;color:{_vc2};margin-bottom:6px;">{_vt}</div>
-  <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:0.88rem;color:#333;">
-    <span>推奨スコア <b>{_gp*100:.0f}%</b></span>
-    <span>期待釣果 <b>{_ec:.1f}匹</b></span>
-    {'<span>注目魚種 <b>' + _sp + '</b></span>' if _sp else ''}
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-        # Claude プロンプト
         with st.expander('💬 Claude AI へのプロンプトを生成'):
             fc_api = _load_forecast_api()
             fc_row2 = None
@@ -1440,19 +1506,15 @@ with tab1:
             _row_bg = '#FFFBE8' if _is_today_t1 else '#fff'
             _row_bl = '#e07b00' if _is_today_t1 else '#1B8FA8'
 
-            _col_row, _col_dbtn = st.columns([6, 1])
-            with _col_row:
-                st.markdown(f"""
-<div style="background:{_row_bg};border-left:4px solid {_row_bl};border-radius:10px;
-     padding:11px 14px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
-  <span style="font-size:1.3rem;">{_wxe_t1(_wx_str)}</span>
-  <span style="font-weight:600;color:#0B3D5C;flex:1;min-width:100px;">{_dstr}{_ai_badge}</span>
-  <span style="font-size:0.88rem;">{_temp_h}</span>
-  <span style="color:#555;font-size:0.82rem;">{_prec_h}</span>
-  <span style="color:#555;font-size:0.82rem;">{_tide_h}</span>
-</div>""", unsafe_allow_html=True)
-            with _col_dbtn:
-                if st.button('詳細', key=f't1_detail_{_ti}', use_container_width=True):
+            _tmax_b = f"{int(_tmax_v)}℃" if _tmax_v is not None else "–"
+            _tmin_b = f"{int(_tmin_v)}℃" if _tmin_v is not None else "–"
+            _prec_b = f"☔{_prec_v}mm" if _prec_v is not None else ""
+            _tide_b = f"🌙{_tide_n}" if _tide_n else ""
+            _ai_b = "  🤖AI" if _has_ai else ""
+            _btn_t1 = f"{_wxe_t1(_wx_str)} {_dstr}{_ai_b}\n{_tmax_b} / {_tmin_b}  {_prec_b}  {_tide_b}"
+            _drm_t1 = 'drm-today' if _is_today_t1 else ''
+            st.markdown(f'<span class="day-row-marker {_drm_t1}"></span>', unsafe_allow_html=True)
+            if st.button(_btn_t1, key=f't1_detail_{_ti}', use_container_width=True):
                     _show_tab1_detail(
                         sel_date=_td,
                         wx_df=wx_df,
