@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+.dcard-wrap {
+    display: flex;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    overflow: hidden;
+    height: 80px;
+    cursor: pointer;
+    user-select: none;
+    transition: box-shadow 0.15s ease;
+}
+.dcard-wrap:hover { box-shadow: 0 3px 14px rgba(0,0,0,0.13); }
+.dcard-wrap:active { box-shadow: 0 1px 6px rgba(0,0,0,0.10); }
+.dcard-wrap.drm-today { box-shadow: 0 3px 18px rgba(0,0,0,0.15); }
+.dcard-wrap.drm-today:hover { box-shadow: 0 4px 22px rgba(0,0,0,0.20); }
+
+.dcard-l {
+    width: 68px; flex-shrink: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: #F2F7FA; border-right: 1px solid #DDE9F2;
+    padding: 6px 4px; gap: 3px;
+}
+.dcard-stars { font-size: 0.68rem; color: #D4A017; letter-spacing: -1px; line-height: 1; }
+.dcard-count { font-size: 0.9rem; font-weight: 700; color: #0B3D5C; line-height: 1; }
+.dcard-date  { font-size: 0.72rem; text-align: center; color: #2C4E6A; font-weight: 600; line-height: 1.3; }
+.dcard-wd    { font-size: 0.62rem; color: #6A7E8A; font-weight: 400; }
+.dcard-today-badge {
+    font-size: 0.58rem; background: #E07B00; color: #fff;
+    border-radius: 3px; padding: 1px 4px; font-weight: 700; line-height: 1.5;
+}
+
+.dcard-r { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.dcard-top {
+    padding: 8px 12px 5px;
+    font-size: 0.88rem; font-weight: 700; color: #0B3D5C;
+    border-bottom: 1px solid #EEF3F7;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    line-height: 1.2;
+}
+.dcard-bot { display: flex; align-items: stretch; flex: 1; overflow: hidden; }
+.dcard-conds {
+    flex: 1; display: flex; flex-direction: column; justify-content: center;
+    padding: 4px 10px; gap: 2px; min-width: 0; overflow: hidden;
+}
+.dcard-conds-r1 {
+    font-size: 0.74rem; font-weight: 500; color: #2C4E6A;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dcard-conds-r2 {
+    font-size: 0.66rem; color: #5A6E7D;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.dcard-dep {
+    writing-mode: vertical-rl; text-orientation: mixed;
+    font-size: 0.68rem; font-weight: 700; color: #fff;
+    padding: 4px 3px; min-width: 22px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    letter-spacing: 0.1em;
+}
+.dcard-wrap.drm-go    .dcard-dep { background: #1a7a4a; }
+.dcard-wrap.drm-check .dcard-dep { background: #b07d00; }
+.dcard-wrap.drm-stop  .dcard-dep { background: #c0392b; }
+</style>
+</head>
+<body>
+<div id="card-root"></div>
+
+<script>
+// Streamlit Component Library (inline minimal version)
+function sendMessageToStreamlitClient(type, data) {
+    var outData = Object.assign({ isStreamlitMessage: true, type: type }, data);
+    window.parent.postMessage(outData, "*");
+}
+
+function init() {
+    sendMessageToStreamlitClient("streamlit:componentReady", { apiVersion: 1 });
+}
+
+function setFrameHeight(height) {
+    sendMessageToStreamlitClient("streamlit:setFrameHeight", { height: height });
+}
+
+function setComponentValue(value) {
+    sendMessageToStreamlitClient("streamlit:setComponentValue", { value: value });
+}
+
+// Listen for render events from Streamlit
+window.addEventListener("message", function(event) {
+    if (event.data.type !== "streamlit:render") return;
+
+    var args = event.data.args;
+    var root = document.getElementById("card-root");
+    root.innerHTML = args.html;
+
+    // Click handler: send click event back to Python
+    root.onclick = function() {
+        setComponentValue(Date.now());  // unique value to trigger rerun
+    };
+
+    setFrameHeight(args.height || 84);
+});
+
+init();
+</script>
+</body>
+</html>

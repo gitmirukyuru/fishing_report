@@ -394,28 +394,7 @@ hr { border-color: #D5E6EF; margin: 1.2rem 0; }
 .dcard-wrap.drm-check .dcard-dep { background: #b07d00; }
 .dcard-wrap.drm-stop  .dcard-dep { background: #c0392b; }
 
-/* カード全体クリック: .clickable-card を基準にボタンを全面カバー */
-.clickable-card {
-    position: relative;
-}
-.clickable-card button {
-    position: absolute !important;
-    inset: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    opacity: 0 !important;
-    cursor: pointer !important;
-    background: transparent !important;
-    border: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-}
-.clickable-card button:focus,
-.clickable-card button:active,
-.clickable-card button:focus-visible {
-    outline: none !important;
-    box-shadow: none !important;
-}
+/* カードはカスタムコンポーネント内で描画（CSSはcomponents/clickable_card/index.htmlに定義） */
 
 /* ── 地点セグメントコントロール ── */
 [data-testid="stRadio"] > div {
@@ -1399,10 +1378,7 @@ with tab0:
             else:
                 _dep_html = ''
 
-            # clickable-card ラッパーを開く（prompt3.txt 方式）
-            st.markdown('<div class="clickable-card">', unsafe_allow_html=True)
-
-            # HTMLカード組み立て（自己完結・ちゃんと閉じる）
+            # HTMLカード組み立て
             _card_html = (
                 f'<div class="dcard-wrap {_u_drm} {_u_drm_today}">'
                 f'<div class="dcard-l">'
@@ -1423,8 +1399,9 @@ with tab0:
                 f'</div>'
                 f'</div>'
             )
-            st.markdown(_card_html, unsafe_allow_html=True)
-            if st.button('', key=f'unified_{_uidx}', use_container_width=True):
+            # カスタムコンポーネント: カード全体がクリッカブル
+            from components.clickable_card import clickable_card
+            if clickable_card(_card_html, key=f'card_{_uidx}'):
                 if _u_ai_p is not None:
                     _show_day_detail(
                         sel_date=_ud, sel_pred=_u_ai_p, mw_row=_u_mw_row,
@@ -1444,7 +1421,6 @@ with tab0:
                         location=_u_loc, wdays=_WDAYS,
                         prompt_builder_mod=prompt_builder,
                     )
-            st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.info('データを取得できませんでした。')
 
