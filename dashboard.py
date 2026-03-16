@@ -158,43 +158,6 @@ html, body, .stApp {
     color: #1C3448 !important;
 }
 
-/* ── 行タップカード（day-row-marker の直後ボタンをカード化）── */
-[data-testid="element-container"]:has(.day-row-marker) + [data-testid="element-container"] button {
-    text-align: left !important;
-    background: #fff !important;
-    border: none !important;
-    border-left: 4px solid #1B8FA8 !important;
-    border-radius: 10px !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
-    padding: 12px 16px !important;
-    white-space: pre-line !important;
-    font-size: 0.88rem !important;
-    line-height: 1.6 !important;
-    color: #0B3D5C !important;
-    min-height: auto !important;
-    transition: background 0.15s, box-shadow 0.15s !important;
-}
-[data-testid="element-container"]:has(.day-row-marker) + [data-testid="element-container"] button:hover {
-    background: #eef6ff !important;
-    box-shadow: 0 4px 14px rgba(27,143,168,0.12) !important;
-}
-/* 判定別カラー */
-[data-testid="element-container"]:has(.drm-go) + [data-testid="element-container"] button {
-    border-left-color: #1a7a4a !important;
-    background: #f4fbf6 !important;
-}
-[data-testid="element-container"]:has(.drm-check) + [data-testid="element-container"] button {
-    border-left-color: #7a5f00 !important;
-    background: #fffbe6 !important;
-}
-[data-testid="element-container"]:has(.drm-stop) + [data-testid="element-container"] button {
-    border-left-color: #7a1c24 !important;
-    background: #fdf0f0 !important;
-}
-[data-testid="element-container"]:has(.drm-today) + [data-testid="element-container"] button {
-    border-left-color: #e07b00 !important;
-    background: #FFFBE8 !important;
-}
 
 /* ── ボタン（サイドバーのみグラデーション） ── */
 [data-testid="stSidebar"] .stButton > button {
@@ -356,68 +319,114 @@ hr { border-color: #D5E6EF; margin: 1.2rem 0; }
 }
 
 /* ══════════════════════════════════════════════════
-   日別判断カード — KPIカードと同一デザイン
-   background:#fff / border-radius:12px / box-shadow:0 2px 10px
-   + 左ボーダーでGO/CHECK/STOP色分け
+   日別判断カード — HTMLカードデザイン
    ══════════════════════════════════════════════════ */
+.dcard-wrap {
+    display: flex;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    overflow: hidden;
+    height: 80px;
+    pointer-events: none;
+    user-select: none;
+}
+.dcard-wrap.drm-today { box-shadow: 0 3px 18px rgba(0,0,0,0.15); }
 
-/* ベース（KPIカードと同一スタイル） */
-[data-testid="element-container"]:has(.day-row-marker) + [data-testid="element-container"] button {
-    background: #fff !important;
+/* 左カラム: 星・釣果数・日付 */
+.dcard-l {
+    width: 68px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #F2F7FA;
+    border-right: 1px solid #DDE9F2;
+    padding: 6px 4px;
+    gap: 3px;
+}
+.dcard-stars { font-size: 0.68rem; color: #D4A017; letter-spacing: -1px; line-height: 1; }
+.dcard-count { font-size: 0.9rem; font-weight: 700; color: #0B3D5C; line-height: 1; }
+.dcard-date  { font-size: 0.72rem; text-align: center; color: #2C4E6A; font-weight: 600; line-height: 1.3; }
+.dcard-wd    { font-size: 0.62rem; color: #6A7E8A; font-weight: 400; }
+.dcard-today-badge {
+    font-size: 0.58rem; background: #E07B00; color: #fff;
+    border-radius: 3px; padding: 1px 4px; font-weight: 700; line-height: 1.5;
+}
+
+/* 右エリア */
+.dcard-r { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+/* 上段: 潮型・気温 */
+.dcard-top {
+    padding: 8px 12px 5px;
+    font-size: 0.88rem; font-weight: 700; color: #0B3D5C;
+    border-bottom: 1px solid #EEF3F7;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    line-height: 1.2;
+}
+
+/* 下段: 条件＋出船 */
+.dcard-bot { display: flex; align-items: stretch; flex: 1; overflow: hidden; }
+.dcard-conds {
+    flex: 1; display: flex; flex-direction: column; justify-content: center;
+    padding: 4px 10px; gap: 2px; min-width: 0; overflow: hidden;
+}
+.dcard-conds-r1 {
+    font-size: 0.74rem; font-weight: 500; color: #2C4E6A;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dcard-conds-r2 {
+    font-size: 0.66rem; color: #5A6E7D;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* 出船: 縦書きストリップ */
+.dcard-dep {
+    writing-mode: vertical-rl; text-orientation: mixed;
+    font-size: 0.68rem; font-weight: 700; color: #fff;
+    padding: 4px 3px; min-width: 22px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    letter-spacing: 0.1em;
+}
+.dcard-wrap.drm-go    .dcard-dep { background: #1a7a4a; }
+.dcard-wrap.drm-check .dcard-dep { background: #b07d00; }
+.dcard-wrap.drm-stop  .dcard-dep { background: #c0392b; }
+
+/* 透明オーバーレイボタン（HTMLカードの上に重ねてクリック検知） */
+[data-testid="element-container"]:has(.dcard-marker) + [data-testid="element-container"] {
+    margin-top: -88px !important;
+    position: relative !important;
+    z-index: 2 !important;
+    margin-bottom: 8px !important;
+}
+[data-testid="element-container"]:has(.dcard-marker) + [data-testid="element-container"] button {
+    height: 80px !important;
+    background: transparent !important;
     background-image: none !important;
     border: none !important;
-    border-left: 4px solid #1B8FA8 !important;
-    border-radius: 12px !important;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.08) !important;
-    padding: clamp(9px,2.5vw,12px) clamp(12px,3.5vw,16px) !important;
-    text-align: left !important;
-    white-space: pre-line !important;
-    font-size: 0.78rem !important;
-    font-weight: 400 !important;
-    line-height: 1.6 !important;
-    color: #5A6E7D !important;
-    min-height: auto !important;
-    letter-spacing: 0 !important;
-    transform: none !important;
+    box-shadow: none !important;
+    color: transparent !important;
+    cursor: pointer !important;
     width: 100% !important;
-    transition: box-shadow 0.15s !important;
-}
-/* 1行目（判断層）: KPIの値ラベルに相当 — 太字・濃色 */
-[data-testid="element-container"]:has(.day-row-marker) + [data-testid="element-container"] button::first-line {
-    font-size: 0.92rem !important;
-    font-weight: 700 !important;
-    color: #0B3D5C !important;
-    letter-spacing: 0.01em !important;
-}
-[data-testid="element-container"]:has(.day-row-marker) + [data-testid="element-container"] button:hover {
-    box-shadow: 0 4px 16px rgba(0,0,0,0.12) !important;
+    padding: 0 !important;
+    border-radius: 12px !important;
     transform: none !important;
+    font-size: 0 !important;
+    min-height: 0 !important;
+    letter-spacing: 0 !important;
 }
-
-/* GO: 緑 */
-[data-testid="element-container"]:has(.drm-go) + [data-testid="element-container"] button {
-    border-left-color: #1a7a4a !important;
+[data-testid="element-container"]:has(.dcard-marker) + [data-testid="element-container"] button:hover {
+    background: rgba(0,0,0,0.04) !important;
 }
-/* CHECK: 琥珀 */
-[data-testid="element-container"]:has(.drm-check) + [data-testid="element-container"] button {
-    border-left-color: #b07d00 !important;
-}
-/* STOP: 赤 */
-[data-testid="element-container"]:has(.drm-stop) + [data-testid="element-container"] button {
-    border-left-color: #c0392b !important;
-}
-/* TODAY: オレンジ + わずかに暖色シャドウ */
-[data-testid="element-container"]:has(.drm-today) + [data-testid="element-container"] button {
-    border-left-color: #d4700a !important;
-    box-shadow: 0 2px 12px rgba(212,112,10,0.18) !important;
+[data-testid="element-container"]:has(.dcard-marker) + [data-testid="element-container"] button:active {
+    background: rgba(0,0,0,0.08) !important;
 }
 
 /* カード間の余白 */
-[data-testid="element-container"]:has(.day-row-marker) {
+[data-testid="element-container"]:has(.dcard-marker) {
     margin-bottom: 0 !important; padding-bottom: 0 !important;
-}
-[data-testid="element-container"]:has(.day-row-marker) + [data-testid="element-container"] {
-    margin-top: 0 !important; padding-top: 0 !important; margin-bottom: 6px !important;
 }
 
 /* ── 地点セグメントコントロール ── */
@@ -1367,34 +1376,65 @@ with tab0:
             _u_star_s = _u_stars(_u_gp) if _u_gp is not None else ''
 
             # カード色クラス
-            _u_today_mark = ' 今日' if _ud == _today else ''
             _u_drm = 'drm-stop' if _u_vs and '✖' in _u_vs else ('drm-check' if _u_vs and '⚠' in _u_vs else 'drm-go')
-            _u_drm_today = ' drm-today' if _ud == _today else ''
+            _u_drm_today = 'drm-today' if _ud == _today else ''
 
-            # ラベル組み立て（判断層 / 文脈層）
-            if _u_vs and _u_gp is not None:
-                _u_l1 = f"{_u_vs}  {_ud.month}/{_ud.day}({_uwd}){_u_today_mark}  │  🎣 {_u_ec:.1f}匹  {_u_star_s}"
-                _u_p2 = []
-                if _u_wxe_s and _u_temp_s: _u_p2.append(f'{_u_wxe_s} {_u_temp_s}')
-                if _u_tide_s: _u_p2.append(f'🌊 {_u_tide_s}')
-                if _u_mw_spd is not None: _u_p2.append(f'🌬 {int(_u_mw_spd)}m/s')
-            elif _u_vs:
-                _u_l1 = f"{_u_vs}  {_ud.month}/{_ud.day}({_uwd}){_u_today_mark}  │  {_u_wxe_s} {_u_temp_s}"
-                _u_p2 = []
-                if _u_tide_s: _u_p2.append(f'🌊 {_u_tide_s}')
-                if _u_mw_spd is not None: _u_p2.append(f'🌬 {int(_u_mw_spd)}m/s')
-                if _u_prec and _u_prec > 0: _u_p2.append(f'☔ {_u_prec}mm')
+            # 潮汐（満潮・干潮時刻）
+            _u_td = _u_tide[_u_tide['date'] == _ud] if _u_tide is not None and not _u_tide.empty else pd.DataFrame()
+            _u_tide_name = str(_u_td['tide_name'].dropna().iloc[0]) if not _u_td.empty and _u_td['tide_name'].notna().any() else ''
+            _u_hi = _u_td[_u_td['type'] == '満潮'].sort_values('time')['time'].tolist() if not _u_td.empty else []
+            _u_lo = _u_td[_u_td['type'] == '干潮'].sort_values('time')['time'].tolist() if not _u_td.empty else []
+            _u_hi_s = '  '.join(_u_hi[:2]) if _u_hi else ''
+            _u_lo_s = '  '.join(_u_lo[:2]) if _u_lo else ''
+
+            # カード上段: 潮型＋気温
+            _top_parts = [p for p in [_u_tide_name, _u_temp_s] if p]
+            _card_top = '　'.join(_top_parts) if _top_parts else (_u_wxe_s or '--')
+
+            # カード下段1行目: 天気・風
+            _r1_parts = [p for p in [_u_wxe_s, (f'🌬 {int(_u_mw_spd)}m/s' if _u_mw_spd is not None else ''), (f'☔ {_u_prec}mm' if _u_prec and _u_prec > 0 else '')] if p]
+            _card_r1 = '　'.join(_r1_parts)
+
+            # カード下段2行目: 潮汐時刻
+            _r2_parts = [p for p in [(f'満 {_u_hi_s}' if _u_hi_s else ''), (f'干 {_u_lo_s}' if _u_lo_s else '')] if p]
+            _card_r2 = '　'.join(_r2_parts)
+
+            # 左カラム
+            _star_disp  = _u_star_s if _u_star_s else '---'
+            _count_disp = f'{_u_ec:.1f}匹' if _u_ec is not None else '--'
+            _today_badge = '<span class="dcard-today-badge">今日</span>' if _ud == _today else ''
+
+            # 出船ストリップ
+            if _u_vs:
+                _dep_sym = '○' if 'GO' in _u_vs else ('△' if '⚠' in _u_vs else '✕')
+                _dep_html = f'<div class="dcard-dep">出船{_dep_sym}</div>'
             else:
-                _u_l1 = f"{_u_wxe_s}  {_ud.month}/{_ud.day}({_uwd}){_u_today_mark}  │  🌡 {_u_temp_s}"
-                _u_p2 = []
-                if _u_tide_s: _u_p2.append(f'🌊 {_u_tide_s}')
-                if _u_prec and _u_prec > 0: _u_p2.append(f'☔ {_u_prec}mm')
+                _dep_html = ''
 
-            _u_l2 = '  ' + '  │  '.join(_u_p2) if _u_p2 else ''
-            _u_label = f"{_u_l1}\n{_u_l2}" if _u_l2 else _u_l1
-
-            st.markdown(f'<span class="day-row-marker {_u_drm}{_u_drm_today}"></span>', unsafe_allow_html=True)
-            if st.button(_u_label, key=f'unified_{_uidx}', use_container_width=True):
+            # HTMLカード組み立て
+            _card_html = (
+                f'<div class="dcard-wrap {_u_drm} {_u_drm_today}">'
+                f'<div class="dcard-l">'
+                f'<div class="dcard-stars">{_star_disp}</div>'
+                f'<div class="dcard-count">{_count_disp}</div>'
+                f'<div class="dcard-date">{_ud.month}/{_ud.day}<br><span class="dcard-wd">（{_uwd}）</span></div>'
+                f'{_today_badge}'
+                f'</div>'
+                f'<div class="dcard-r">'
+                f'<div class="dcard-top">{_card_top}</div>'
+                f'<div class="dcard-bot">'
+                f'<div class="dcard-conds">'
+                f'<div class="dcard-conds-r1">{_card_r1}</div>'
+                f'<div class="dcard-conds-r2">{_card_r2}</div>'
+                f'</div>'
+                f'{_dep_html}'
+                f'</div>'
+                f'</div>'
+                f'</div>'
+                f'<span class="dcard-marker {_u_drm} {_u_drm_today}"></span>'
+            )
+            st.markdown(_card_html, unsafe_allow_html=True)
+            if st.button('', key=f'unified_{_uidx}', use_container_width=True):
                 if _u_ai_p is not None:
                     _show_day_detail(
                         sel_date=_ud, sel_pred=_u_ai_p, mw_row=_u_mw_row,
