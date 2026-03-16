@@ -1399,9 +1399,12 @@ with tab0:
             else:
                 _dep_html = ''
 
-            # HTMLカード組み立て（clickable-card で開いたまま → button → 閉じる）
-            _card_open = (
-                f'<div class="clickable-card dcard-wrap {_u_drm} {_u_drm_today}">'
+            # clickable-card ラッパーを開く（prompt3.txt 方式）
+            st.markdown('<div class="clickable-card">', unsafe_allow_html=True)
+
+            # HTMLカード組み立て（自己完結・ちゃんと閉じる）
+            _card_html = (
+                f'<div class="dcard-wrap {_u_drm} {_u_drm_today}">'
                 f'<div class="dcard-l">'
                 f'<div class="dcard-stars">{_star_disp}</div>'
                 f'<div class="dcard-count">{_count_disp}</div>'
@@ -1418,9 +1421,9 @@ with tab0:
                 f'{_dep_html}'
                 f'</div>'
                 f'</div>'
-                # ← </div> を意図的に省略してボタンを中に含める
+                f'</div>'
             )
-            st.markdown(_card_open, unsafe_allow_html=True)
+            st.markdown(_card_html, unsafe_allow_html=True)
             if st.button('', key=f'unified_{_uidx}', use_container_width=True):
                 if _u_ai_p is not None:
                     _show_day_detail(
