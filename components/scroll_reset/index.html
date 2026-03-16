@@ -1,47 +1,65 @@
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:transparent;">
+<body style="margin:0;padding:0;background:transparent;overflow:hidden;">
 <script>
 (function () {
-  function sendReady() {
+  /* Streamlit Component 最小プロトコル */
+  function post(type, data) {
     window.parent.postMessage(
-      { isStreamlitMessage: true, type: "streamlit:componentReady", apiVersion: 1 },
-      "*"
-    );
-    window.parent.postMessage(
-      { isStreamlitMessage: true, type: "streamlit:setFrameHeight", height: 0 },
-      "*"
+      Object.assign({ isStreamlitMessage: true, type: type }, data), "*"
     );
   }
+  post("streamlit:componentReady", { apiVersion: 1 });
+  post("streamlit:setFrameHeight", { height: 0 });
 
-  function resetScroll() {
-    var targets = [window.parent, window.top];
-    for (var i = 0; i < targets.length; i++) {
+  var SEL = '[data-testid="stDialogScrollArea"]';
+  var LOCK_MS = 4000;   /* この時間内はスクロールを 0 に固定 */
+  var lockEnd = 0;
+
+  function resetEl(el) {
+    if (el.scrollTop === 0) return;
+    el.scrollTop = 0;
+  }
+
+  function findAndLock() {
+    var found = false;
+    [window.parent, window.top].forEach(function (w) {
       try {
-        var els = targets[i].document.querySelectorAll(
-          '[data-testid="stDialogScrollArea"]'
-        );
-        for (var j = 0; j < els.length; j++) {
-          els[j].scrollTop = 0;
-        }
+        w.document.querySelectorAll(SEL).forEach(function (el) {
+          found = true;
+          resetEl(el);
+          /* まだリスナーを付けていなければ付ける */
+          if (!el.__srLocked) {
+            el.__srLocked = true;
+            el.addEventListener('scroll', function () {
+              if (Date.now() < lockEnd) {
+                el.scrollTop = 0;
+              }
+            }, { passive: true });
+          }
+        });
       } catch (e) {}
-    }
+    });
+    return found;
   }
 
   window.addEventListener("message", function (event) {
     if (event.data.type !== "streamlit:render") return;
-    // 複数のタイミングでリセット（コンテンツの遅延レンダリング対策）
-    [0, 50, 150, 300, 600, 1000, 1600, 2400].forEach(function (t) {
-      setTimeout(resetScroll, t);
-    });
-    window.parent.postMessage(
-      { isStreamlitMessage: true, type: "streamlit:setComponentValue", value: 1 },
-      "*"
-    );
-  });
 
-  sendReady();
+    lockEnd = Date.now() + LOCK_MS;
+
+    /* ダイアログが DOM に現れるまで 50ms ごとにポーリング（最大 3 秒）*/
+    var pollStart = Date.now();
+    var pollId = setInterval(function () {
+      var found = findAndLock();
+      if (found || Date.now() - pollStart > 3000) {
+        clearInterval(pollId);
+      }
+    }, 50);
+
+    post("streamlit:setComponentValue", { value: 1 });
+  });
 })();
 </script>
 </body>
