@@ -812,15 +812,20 @@ def _show_day_detail(sel_date, sel_pred, mw_row, h_wx, h_fc, h_tide, h_br, today
     """選択した日の詳細情報をダイアログで表示する。"""
     import streamlit.components.v1 as _stc
     _stc.html(
-        '<script>'
-        'function _s(){try{'
+        '<script>(function(){'
+        'var SEL="[data-testid=\\"stDialogScrollArea\\"]";'
+        'var T0=Date.now();var DUR=5000;'
+        'function rst(){'
         '[window.parent,window.top].forEach(function(w){'
-        'try{w.document.querySelectorAll('
-        '"[data-testid=\\"stDialogScrollArea\\"]"'
-        ').forEach(function(e){e.scrollTop=0;});}catch(e){}});'
-        '}catch(e){}}'
-        '[80,250,600].forEach(function(t){setTimeout(_s,t)});'
-        '</script>',
+        'try{w.document.querySelectorAll(SEL).forEach(function(e){e.scrollTop=0;});}catch(e){}});}'
+        '[80,250,600,1200,2500].forEach(function(t){setTimeout(rst,t)});'
+        '[window.parent,window.top].forEach(function(w){'
+        'try{'
+        'var ob=new MutationObserver(function(){'
+        'if(Date.now()-T0<DUR){rst();}else{ob.disconnect();}});'
+        'ob.observe(w.document.body,{childList:true,subtree:true});'
+        '}catch(e){}});'
+        '})();</script>',
         height=1, scrolling=False,
     )
     _d = sel_date
@@ -1228,15 +1233,20 @@ def _show_tab1_detail(sel_date, wx_df, tide_df, hourly_df, ai_preds,
     """天気・潮汐・AI予測をダイアログで表示する。"""
     import streamlit.components.v1 as _stc2
     _stc2.html(
-        '<script>'
-        'function _s2(){try{'
+        '<script>(function(){'
+        'var SEL="[data-testid=\\"stDialogScrollArea\\"]";'
+        'var T0=Date.now();var DUR=5000;'
+        'function rst(){'
         '[window.parent,window.top].forEach(function(w){'
-        'try{w.document.querySelectorAll('
-        '"[data-testid=\\"stDialogScrollArea\\"]"'
-        ').forEach(function(e){e.scrollTop=0;});}catch(e){}});'
-        '}catch(e){}}'
-        '[80,250,600].forEach(function(t){setTimeout(_s2,t)});'
-        '</script>',
+        'try{w.document.querySelectorAll(SEL).forEach(function(e){e.scrollTop=0;});}catch(e){}});}'
+        '[80,250,600,1200,2500].forEach(function(t){setTimeout(rst,t)});'
+        '[window.parent,window.top].forEach(function(w){'
+        'try{'
+        'var ob=new MutationObserver(function(){'
+        'if(Date.now()-T0<DUR){rst();}else{ob.disconnect();}});'
+        'ob.observe(w.document.body,{childList:true,subtree:true});'
+        '}catch(e){}});'
+        '})();</script>',
         height=1, scrolling=False,
     )
     d = sel_date
