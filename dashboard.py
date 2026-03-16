@@ -812,9 +812,16 @@ def _show_day_detail(sel_date, sel_pred, mw_row, h_wx, h_fc, h_tide, h_br, today
     """選択した日の詳細情報をダイアログで表示する。"""
     import streamlit.components.v1 as _stc
     _stc.html(
-        '<script>setTimeout(()=>{const d=window.parent.document.querySelector'
-        '("[data-testid=\'stDialogScrollArea\']");if(d)d.scrollTop=0;},30);</script>',
-        height=0, scrolling=False,
+        '<script>'
+        'function _s(){try{'
+        '[window.parent,window.top].forEach(function(w){'
+        'try{w.document.querySelectorAll('
+        '"[data-testid=\\"stDialogScrollArea\\"]"'
+        ').forEach(function(e){e.scrollTop=0;});}catch(e){}});'
+        '}catch(e){}}'
+        '[80,250,600].forEach(function(t){setTimeout(_s,t)});'
+        '</script>',
+        height=1, scrolling=False,
     )
     _d = sel_date
     _wd = wdays[_d.weekday()]
@@ -1221,9 +1228,16 @@ def _show_tab1_detail(sel_date, wx_df, tide_df, hourly_df, ai_preds,
     """天気・潮汐・AI予測をダイアログで表示する。"""
     import streamlit.components.v1 as _stc2
     _stc2.html(
-        '<script>setTimeout(()=>{const d=window.parent.document.querySelector'
-        '("[data-testid=\'stDialogScrollArea\']");if(d)d.scrollTop=0;},30);</script>',
-        height=0, scrolling=False,
+        '<script>'
+        'function _s2(){try{'
+        '[window.parent,window.top].forEach(function(w){'
+        'try{w.document.querySelectorAll('
+        '"[data-testid=\\"stDialogScrollArea\\"]"'
+        ').forEach(function(e){e.scrollTop=0;});}catch(e){}});'
+        '}catch(e){}}'
+        '[80,250,600].forEach(function(t){setTimeout(_s2,t)});'
+        '</script>',
+        height=1, scrolling=False,
     )
     d = sel_date
     wd = wdays[d.weekday()]
@@ -1324,25 +1338,37 @@ def _show_tab1_detail(sel_date, wx_df, tide_df, hourly_df, ai_preds,
 """, unsafe_allow_html=True)
 
     # ── 3. 6時間ごとの詳細 ────────────────────────────────────
-    _cell = "text-align:center;padding:4px 2px;font-size:0.76rem;"
-    _hdr  = "text-align:center;font-weight:700;color:#0B3D5C;padding:4px 2px;font-size:0.76rem;border-bottom:1px solid #DDE8F5;"
-    _lbl  = "color:#888;font-weight:600;padding:4px 2px;font-size:0.76rem;white-space:nowrap;"
-    _hh_cells  = ''.join(f'<div style="{_hdr}">{h:02d}:00</div>' for h in _HOURS)
-    _hw_cells  = ''.join(f'<div style="{_cell}">{_wxe2(_hv_d(h,"weather_text")) or _hv_d(h,"weather_text")}</div>' for h in _HOURS)
-    _ht_cells  = ''.join(f'<div style="{_cell}">{_hv_d(h,"temp_c","{:.0f}℃")}</div>'          for h in _HOURS)
-    _hm_cells  = ''.join(f'<div style="{_cell}">{_hv_d(h,"humidity","{:.0f}%")}</div>'         for h in _HOURS)
-    _hwi_cells = ''.join(f'<div style="{_cell}">{_hv_d(h,"wind_dir")} {_hv_d(h,"wind_speed_ms","{:.0f}m/s")}</div>' for h in _HOURS)
-    _hp_cells  = ''.join(f'<div style="{_cell}">{_hv_d(h,"precipitation_mm","{:.1f}mm")}</div>' for h in _HOURS)
+    _tc = "padding:4px 8px;text-align:center;font-size:0.76rem;color:#1C3448;"
+    _tl = "padding:4px 6px;color:#888;font-weight:600;font-size:0.76rem;white-space:nowrap;"
+    _th = "padding:5px 8px;text-align:center;font-size:0.76rem;font-weight:700;color:#0B3D5C;border-bottom:2px solid #DDE8F5;"
+
+    def _tr(label, cells_html):
+        return f'<tr><td style="{_tl}">{label}</td>{cells_html}</tr>'
+
+    def _tds(col, fmt='{}'):
+        return ''.join(f'<td style="{_tc}">{_hv_d(h, col, fmt)}</td>' for h in _HOURS)
+
+    _wx_tds = ''.join(
+        f'<td style="{_tc}">{_wxe2(_hv_d(h,"weather_text")) or _hv_d(h,"weather_text")}</td>'
+        for h in _HOURS
+    )
+    _wind_tds = ''.join(
+        f'<td style="{_tc}">{_hv_d(h,"wind_dir")}<br>{_hv_d(h,"wind_speed_ms","{:.0f}m/s")}</td>'
+        for h in _HOURS
+    )
+    _hour_headers = ''.join(f'<th style="{_th}">{h:02d}:00</th>' for h in _HOURS)
     st.markdown(f"""
 <div style="overflow-x:auto;margin-bottom:16px;background:#F8FBFF;border-radius:10px;padding:10px 12px;">
-<div style="display:grid;grid-template-columns:52px repeat(4,1fr);gap:2px;min-width:260px;">
-  <div style="{_lbl}">時刻</div>{_hh_cells}
-  <div style="{_lbl}">天気</div>{_hw_cells}
-  <div style="{_lbl}">気温</div>{_ht_cells}
-  <div style="{_lbl}">湿度</div>{_hm_cells}
-  <div style="{_lbl}">風</div>{_hwi_cells}
-  <div style="{_lbl}">降水</div>{_hp_cells}
-</div>
+<table style="width:100%;min-width:260px;border-collapse:collapse;">
+  <thead><tr><th style="{_tl}"></th>{_hour_headers}</tr></thead>
+  <tbody>
+    {_tr('天気', _wx_tds)}
+    {_tr('気温', _tds('temp_c', '{:.0f}℃'))}
+    {_tr('湿度', _tds('humidity', '{:.0f}%'))}
+    {_tr('風', _wind_tds)}
+    {_tr('降水', _tds('precipitation_mm', '{:.1f}mm'))}
+  </tbody>
+</table>
 </div>
 """, unsafe_allow_html=True)
 
