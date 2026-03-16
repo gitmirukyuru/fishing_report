@@ -897,7 +897,8 @@ def _fmt_tide_list(rows: pd.DataFrame) -> str:
 
 @st.dialog('📅 釣行詳細', width='large')
 def _show_day_detail(sel_date, sel_pred, mw_row, h_wx, h_fc, h_tide, h_br, today, wdays,
-                     load_ranking_fn, build_reasons_fn, species_lift_fn):
+                     load_ranking_fn, build_reasons_fn, species_lift_fn,
+                     hourly_df=None):
     """選択した日の詳細情報をダイアログで表示する。"""
     import streamlit.components.v1 as _stc
     _stc.html(
@@ -1008,6 +1009,93 @@ def _show_day_detail(sel_date, sel_pred, mw_row, h_wx, h_fc, h_tide, h_br, today
   <div style="{_dcR}"><div style="{_dlb}">🌙 潮</div><div style="{_dvl}">{_tide_str}</div></div>
 </div>
 """, unsafe_allow_html=True)
+
+    # ── 6時間ごとの詳細グリッド ────────────────────────────────
+    _hd = hourly_df[hourly_df['date'] == _d] if hourly_df is not None and not hourly_df.empty else pd.DataFrame()
+    if not _hd.empty:
+        _HOURS_D = [0, 6, 12, 18]
+        _XRANGE_D = [-3, 21]
+        _XTICKS_D = dict(tickvals=[0, 6, 12, 18], ticktext=['0:00', '6:00', '12:00', '18:00'])
+        _CM_D = dict(l=45, r=10, t=8, b=8)
+        _tc_d = "padding:4px 8px;text-align:center;font-size:0.76rem;color:#1C3448;"
+        _tl_d = "padding:4px 6px;color:#888;font-weight:600;font-size:0.76rem;white-space:nowrap;"
+        _th_d = "padding:5px 8px;text-align:center;font-size:0.76rem;font-weight:700;color:#0B3D5C;border-bottom:2px solid #DDE8F5;"
+
+        def _hv_dd(hour_, col_, fmt='{}'):
+            r_ = _hd[_hd['hour'] == hour_]
+            if r_.empty or not pd.notna(r_.iloc[0].get(col_)): return '–'
+            return fmt.format(r_.iloc[0][col_])
+
+        def _wxe_hd(s):
+            if not s or s == '–': return s
+            s = str(s)
+            if '雪' in s: return '❄️'
+            if '雷' in s: return '⛈️'
+            if '雨' in s and '晴' in s: return '🌦️'
+            if '雨' in s: return '🌧️'
+            if '曇' in s and '晴' in s: return '🌤️'
+            if '曇' in s: return '☁️'
+            if '晴' in s: return '☀️'
+            return s
+
+        def _tr_d(label, cells_html):
+            return f'<tr><td style="{_tl_d}">{label}</td>{cells_html}</tr>'
+
+        def _tds_d(col, fmt='{}'):
+            return ''.join(f'<td style="{_tc_d}">{_hv_dd(h, col, fmt)}</td>' for h in _HOURS_D)
+
+        _hour_headers_d = ''.join(f'<th style="{_th_d}">{h:02d}:00</th>' for h in _HOURS_D)
+        _wx_tds_d  = ''.join(f'<td style="{_tc_d}">{_wxe_hd(_hv_dd(h,"weather_text")) or _hv_dd(h,"weather_text")}</td>' for h in _HOURS_D)
+        _wind_tds_d = ''.join(f'<td style="{_tc_d}">{_hv_dd(h,"wind_dir")}<br>{_hv_dd(h,"wind_speed_ms","{:.0f}m/s")}</td>' for h in _HOURS_D)
+        st.markdown(f"""
+<div style="overflow-x:auto;margin-bottom:16px;background:#F8FBFF;border-radius:10px;padding:10px 12px;">
+<table style="width:100%;min-width:260px;border-collapse:collapse;">
+  <thead><tr><th style="{_tl_d}"></th>{_hour_headers_d}</tr></thead>
+  <tbody>
+    {_tr_d('天気', _wx_tds_d)}
+    {_tr_d('気温', _tds_d('temp_c', '{:.0f}℃'))}
+    {_tr_d('湿度', _tds_d('humidity', '{:.0f}%'))}
+    {_tr_d('風', _wind_tds_d)}
+    {_tr_d('降水', _tds_d('precipitation_mm', '{:.1f}mm'))}
+  </tbody>
+</table>
+</div>
+""", unsafe_allow_html=True)
+
+        # 気温・潮位グラフ
+        _cfg_d = {'displayModeBar': False, 'scrollZoom': False, 'staticPlot': False}
+        _ch_l, _ch_r = st.columns(2)
+        with _ch_l:
+            _temp_pts = [(h, (lambda s: s.iloc[0]['temp_c'] if not s.empty and pd.notna(s.iloc[0].get('temp_c')) else None)(_hd[_hd['hour'] == h])) for h in _HOURS_D]
+            if any(v is not None for _, v in _temp_pts):
+                _xs = [h for h, v in _temp_pts if v is not None]
+                _ys = [v for _, v in _temp_pts if v is not None]
+                _fig_t = go.Figure(go.Scatter(x=_xs, y=_ys, mode='lines+markers',
+                    line=dict(shape='spline', color='tomato', width=2),
+                    marker=dict(size=7, color='tomato'), showlegend=False))
+                _fig_t.update_xaxes(range=_XRANGE_D, showgrid=True, gridcolor='#eee', zeroline=False, fixedrange=True, **_XTICKS_D)
+                _fig_t.update_yaxes(title_text='℃', tickformat='.0f', showgrid=True, gridcolor='#eee', fixedrange=True)
+                _fig_t.update_layout(height=180, margin=_CM_D, plot_bgcolor='white', paper_bgcolor='white',
+                    title=dict(text='気温', font_size=13, x=0.02), dragmode=False)
+                st.plotly_chart(_fig_t, use_container_width=True, config=_cfg_d)
+        with _ch_r:
+            if h_tide is not None and not h_tide.empty:
+                _dtplot = h_tide[h_tide['date'] == _d].copy()
+                if not _dtplot.empty:
+                    _dtplot['height_cm'] = pd.to_numeric(_dtplot['height_cm'], errors='coerce')
+                    _dtplot['hour_f'] = _dtplot['time'].apply(lambda t: int(str(t).split(':')[0]) + int(str(t).split(':')[1]) / 60)
+                    _dtplot = _dtplot.sort_values('hour_f')
+                    _fig_td = go.Figure(go.Scatter(
+                        x=_dtplot['hour_f'], y=_dtplot['height_cm'], mode='lines+markers',
+                        line=dict(shape='spline', color='steelblue', width=2),
+                        marker=dict(size=7, color='steelblue'),
+                        text=_dtplot.apply(lambda r: f"{r['type']} {str(r['time'])[:5]} {r['height_cm']:.0f}cm", axis=1),
+                        hovertemplate='%{text}<extra></extra>', showlegend=False))
+                    _fig_td.update_xaxes(range=_XRANGE_D, showgrid=True, gridcolor='#eee', fixedrange=True, **_XTICKS_D)
+                    _fig_td.update_yaxes(title_text='cm', tickformat='.0f', showgrid=True, gridcolor='#eee', fixedrange=True)
+                    _fig_td.update_layout(height=180, margin=_CM_D, plot_bgcolor='white', paper_bgcolor='white',
+                        title=dict(text='潮位', font_size=13, x=0.02), dragmode=False)
+                    st.plotly_chart(_fig_td, use_container_width=True, config=_cfg_d)
 
     # ── 懸念事項 / 好条件 ─────────────────────────────────────
     _rising = sel_pred.get('rising_ratio') if sel_pred else None
@@ -1316,6 +1404,7 @@ with tab0:
                         load_ranking_fn=_load_spot_ranking,
                         build_reasons_fn=_build_reasons,
                         species_lift_fn=_species_lift_str,
+                        hourly_df=_u_hourly,
                     )
                 else:
                     _show_tab1_detail(
