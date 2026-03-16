@@ -423,18 +423,22 @@ hr { border-color: #D5E6EF; margin: 1.2rem 0; }
     margin-bottom: -80px !important;
 }
 
-/* 透明オーバーレイボタン */
-[data-testid="element-container"]:has(.dcard-marker) + [data-testid="element-container"] {
+/* 透明オーバーレイボタン（JSで.dcard-btn-wrapと.dcard-btnを付与） */
+.dcard-btn-wrap {
     position: relative !important;
     z-index: 2 !important;
     margin-bottom: 8px !important;
     padding: 0 !important;
 }
-[data-testid="element-container"]:has(.dcard-marker) + [data-testid="element-container"] .stButton {
+.dcard-btn-wrap .stButton {
     margin: 0 !important;
     padding: 0 !important;
 }
-[data-testid="element-container"]:has(.dcard-marker) + [data-testid="element-container"] button {
+button.dcard-btn,
+button.dcard-btn:hover,
+button.dcard-btn:active,
+button.dcard-btn:focus,
+button.dcard-btn:focus-visible {
     height: 80px !important;
     background: transparent !important;
     background-image: none !important;
@@ -451,16 +455,8 @@ hr { border-color: #D5E6EF; margin: 1.2rem 0; }
     letter-spacing: 0 !important;
     outline: none !important;
 }
-[data-testid="element-container"]:has(.dcard-marker) + [data-testid="element-container"] button:hover {
+button.dcard-btn:hover {
     background: rgba(0,0,0,0.04) !important;
-}
-[data-testid="element-container"]:has(.dcard-marker) + [data-testid="element-container"] button:active,
-[data-testid="element-container"]:has(.dcard-marker) + [data-testid="element-container"] button:focus,
-[data-testid="element-container"]:has(.dcard-marker) + [data-testid="element-container"] button:focus-visible {
-    background: transparent !important;
-    outline: none !important;
-    box-shadow: none !important;
-    border: none !important;
 }
 
 /* ── 地点セグメントコントロール ── */
@@ -1490,6 +1486,30 @@ with tab0:
                     )
             # カード間スペーサー（flex gap 16px を1つ稼いで重なりを解消）
             st.markdown('<div class="dcard-spacer"></div>', unsafe_allow_html=True)
+
+        # JS: .dcard-marker の隣ボタンに .dcard-btn クラスを付与
+        import streamlit.components.v1 as _stc
+        _stc.html("""
+        <script>
+        (function(){
+          function tag(){
+            var markers = window.parent.document.querySelectorAll('.dcard-marker');
+            markers.forEach(function(m){
+              var ec = m.closest('[data-testid="element-container"]');
+              if(!ec) return;
+              var next = ec.nextElementSibling;
+              if(!next) return;
+              next.classList.add('dcard-btn-wrap');
+              var btn = next.querySelector('button');
+              if(btn) btn.classList.add('dcard-btn');
+            });
+          }
+          tag();
+          var obs = new MutationObserver(function(){ tag(); });
+          obs.observe(window.parent.document.body, {childList:true, subtree:true});
+        })();
+        </script>
+        """, height=0)
     else:
         st.info('データを取得できませんでした。')
 
