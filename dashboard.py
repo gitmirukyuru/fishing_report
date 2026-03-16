@@ -394,69 +394,41 @@ hr { border-color: #D5E6EF; margin: 1.2rem 0; }
 .dcard-wrap.drm-check .dcard-dep { background: #b07d00; }
 .dcard-wrap.drm-stop  .dcard-dep { background: #c0392b; }
 
-/* marker spanは非表示（:has()はdisplay:noneでもマッチする） */
-.dcard-marker { display: none !important; }
-/* カード間スペーサー: flex gap 1つ分を稼ぐためだけの空要素 */
-.dcard-spacer { height: 0; margin: 0; padding: 0; line-height: 0; font-size: 0; }
-[data-testid="element-container"]:has(.dcard-spacer) {
-    margin: 0 !important; padding: 0 !important; min-height: 0 !important;
-}
-[data-testid="element-container"]:has(.dcard-spacer) > div {
-    margin: 0 !important; padding: 0 !important;
-}
-
-/* カードコンテナ: 内部余白を完全除去 */
-[data-testid="element-container"]:has(.dcard-marker) {
-    margin: 0 !important;
-    padding: 0 !important;
-}
-[data-testid="element-container"]:has(.dcard-marker) > div,
-[data-testid="element-container"]:has(.dcard-marker) .stMarkdown,
-[data-testid="element-container"]:has(.dcard-marker) .stMarkdown > div {
-    margin: 0 !important;
-    padding: 0 !important;
-}
-/* カード: margin-bottom負値でスペースを相殺 */
+/* カード: position:relative で内部ボタンの基準点になる */
 .dcard-wrap {
     position: relative !important;
-    z-index: 1 !important;
-    margin-bottom: -80px !important;
 }
 
-/* 透明オーバーレイボタン（JSで.dcard-btn-wrapと.dcard-btnを付与） */
-.dcard-btn-wrap {
-    position: relative !important;
-    z-index: 2 !important;
-    margin-bottom: 8px !important;
-    padding: 0 !important;
-}
-.dcard-btn-wrap .stButton {
-    margin: 0 !important;
-    padding: 0 !important;
-}
-button.dcard-btn,
-button.dcard-btn:hover,
-button.dcard-btn:active,
-button.dcard-btn:focus,
-button.dcard-btn:focus-visible {
-    height: 80px !important;
+/* JSでdcard-wrap内に移動したボタン: inset:0で全面カバー */
+button.dcard-btn {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
     background: transparent !important;
     background-image: none !important;
     border: none !important;
     box-shadow: none !important;
     color: transparent !important;
     cursor: pointer !important;
-    width: 100% !important;
     padding: 0 !important;
     border-radius: 12px !important;
-    transform: none !important;
     font-size: 0 !important;
-    min-height: 0 !important;
-    letter-spacing: 0 !important;
     outline: none !important;
+    z-index: 10 !important;
 }
 button.dcard-btn:hover {
     background: rgba(0,0,0,0.04) !important;
+    box-shadow: none !important;
+    border: none !important;
+}
+button.dcard-btn:active,
+button.dcard-btn:focus,
+button.dcard-btn:focus-visible {
+    background: transparent !important;
+    outline: none !important;
+    box-shadow: none !important;
+    border: none !important;
 }
 
 /* ── 地点セグメントコントロール ── */
@@ -1484,32 +1456,90 @@ with tab0:
                         location=_u_loc, wdays=_WDAYS,
                         prompt_builder_mod=prompt_builder,
                     )
-            # カード間スペーサー（flex gap 16px を1つ稼いで重なりを解消）
-            st.markdown('<div class="dcard-spacer"></div>', unsafe_allow_html=True)
-
-        # JS: .dcard-marker の隣ボタンに .dcard-btn クラスを付与
+        # JS: ボタンを .dcard-wrap 内に移動し position:absolute;inset:0 で全面カバー
         import streamlit.components.v1 as _stc
         _stc.html("""
         <script>
         (function(){
-          function tag(){
-            var markers = window.parent.document.querySelectorAll('.dcard-marker');
-            markers.forEach(function(m){
-              var ec = m.closest('[data-testid="element-container"]');
-              if(!ec) return;
-              var next = ec.nextElementSibling;
-              if(!next) return;
-              next.classList.add('dcard-btn-wrap');
-              var btn = next.querySelector('button');
-              if(btn) btn.classList.add('dcard-btn');
+          var doc;
+          try { doc = window.parent.document; }
+          catch(e) { console.error('dcard: parent access failed', e); return; }
+
+          /* CSSをparent documentに注入（st.markdownのCSS適用漏れをカバー） */
+          if (!doc.getElementById('dcard-btn-injected-style')) {
+            var s = doc.createElement('style');
+            s.id = 'dcard-btn-injected-style';
+            s.textContent = [
+              'button.dcard-btn{position:absolute!important;inset:0!important;',
+              'width:100%!important;height:100%!important;',
+              'background:transparent!important;background-image:none!important;',
+              'border:none!important;box-shadow:none!important;',
+              'color:transparent!important;cursor:pointer!important;',
+              'padding:0!important;border-radius:12px!important;',
+              'font-size:0!important;outline:none!important;z-index:10!important;',
+              'min-height:unset!important;}',
+              'button.dcard-btn:hover{background:rgba(0,0,0,0.04)!important;',
+              'box-shadow:none!important;border:none!important;}',
+              'button.dcard-btn:active,button.dcard-btn:focus,button.dcard-btn:focus-visible{',
+              'background:transparent!important;outline:none!important;',
+              'box-shadow:none!important;border:none!important;}',
+              '.dcard-btn-ec-hidden{display:none!important;}',
+            ].join('');
+            doc.head.appendChild(s);
+          }
+
+          function findBtnResult(cardEC) {
+            /* パターン1: 直接の nextElementSibling */
+            var n = cardEC.nextElementSibling;
+            if (n) {
+              var b = n.querySelector('button');
+              if (b) return {btnEC: n, btn: b};
+            }
+            /* パターン2: 親の nextElementSibling（ラッパーdivが挟まる場合） */
+            var parent = cardEC.parentElement;
+            if (parent) {
+              var pn = parent.nextElementSibling;
+              if (pn) {
+                var ec2 = pn.querySelector('[data-testid="element-container"]') || pn;
+                var b2 = ec2.querySelector('button');
+                if (b2) return {btnEC: ec2, btn: b2};
+              }
+            }
+            return null;
+          }
+
+          function tag() {
+            doc.querySelectorAll('.dcard-wrap:not(.dcard-processed)').forEach(function(card){
+              var cardEC = card.closest('[data-testid="element-container"]');
+              if (!cardEC) return;
+              var r = findBtnResult(cardEC);
+              if (!r) return;
+              card.classList.add('dcard-processed');
+              r.btn.classList.add('dcard-btn');
+              card.appendChild(r.btn);           /* ボタンをカード内に移動 */
+              r.btnEC.classList.add('dcard-btn-ec-hidden'); /* 空コンテナを非表示 */
             });
           }
+
           tag();
-          var obs = new MutationObserver(function(){ tag(); });
-          obs.observe(window.parent.document.body, {childList:true, subtree:true});
+
+          /* MutationObserver: 再レンダリング時にも自動適用 */
+          var busy = false;
+          var obs = new MutationObserver(function(){
+            if (busy) return;
+            busy = true;
+            requestAnimationFrame(function(){ tag(); busy = false; });
+          });
+          obs.observe(doc.body, {childList:true, subtree:true});
+
+          /* フォールバック: 6秒間200msごとに試行 */
+          var n = 0;
+          var iv = setInterval(function(){
+            tag(); if (++n > 30) clearInterval(iv);
+          }, 200);
         })();
         </script>
-        """, height=0)
+        """, height=1)
     else:
         st.info('データを取得できませんでした。')
 
