@@ -196,8 +196,8 @@ html, body, .stApp {
     background: #FFFBE8 !important;
 }
 
-/* ── ボタン ── */
-.stButton > button {
+/* ── ボタン（サイドバーのみグラデーション） ── */
+[data-testid="stSidebar"] .stButton > button {
     background: linear-gradient(135deg, #1B8FA8 0%, #0B3D5C 100%) !important;
     color: #FFFFFF !important;
     border: none !important;
@@ -210,11 +210,11 @@ html, body, .stApp {
     box-shadow: 0 2px 10px rgba(11,61,92,0.25) !important;
     letter-spacing: 0.01em !important;
 }
-.stButton > button:hover {
+[data-testid="stSidebar"] .stButton > button:hover {
     transform: translateY(-2px) !important;
     box-shadow: 0 6px 18px rgba(11,61,92,0.35) !important;
 }
-.stButton > button:active { transform: translateY(0) !important; }
+[data-testid="stSidebar"] .stButton > button:active { transform: translateY(0) !important; }
 
 /* ── Expander ── */
 [data-testid="stExpander"] {
@@ -712,9 +712,8 @@ st.markdown('<div style="margin-bottom:8px;"></div>', unsafe_allow_html=True)
 # タブ構成
 # ---------------------------------------------------------------------------
 
-tab0, tab1, tab2, tab3 = st.tabs([
-    '🏠 今日',
-    '🎣 予測',
+tab0, tab1, tab2 = st.tabs([
+    '🎣 釣行判断',
     '📊 分析',
     '🏆 磯ランキング',
 ])
@@ -1174,128 +1173,163 @@ def _build_reasons(pred, wind_ms, wave_val, wt, tide_name, rising):
 
 
 # ============================================================
-# Tab 0: 今日の判断（ホーム）
+# Tab 0: 釣行判断（今日 + 予測 統合）
 # ============================================================
 with tab0:
     _today = date.today()
     _WDAYS = '月火水木金土日'
 
-    # ── データ取得（キャッシュ利用）────────────────────────────
-    _h_ai   = _load_ai_predictions(days=7)
+    # 地点セレクター
+    st.markdown('<p style="font-size:0.82rem;color:#4A7A95;margin-bottom:4px;font-weight:600;">地点</p>', unsafe_allow_html=True)
+    _u_loc = st.radio('', ['串本', '白浜'], horizontal=True, label_visibility='collapsed', key='u_loc')
 
-    # 予測生成日時を表示
+    # ── データ取得 ────────────────────────────────────────────
+    with st.spinner('データ取得中...'):
+        _u_wx     = _load_weather(_u_loc)
+        _u_tide   = _load_tide(_u_loc)
+        _u_hourly = _load_hourly()
+    _u_ai   = _load_ai_predictions(days=7)
+    _u_br   = _load_species_base_rates()
+    _u_fc   = _load_forecast_api()
+    _u_mw   = _load_morning_wind(_u_loc)
+    _u_fw   = _load_forecast_wind(_u_loc)
+
+    # 予測生成日時
     if _PREDICTIONS_PATH.exists():
         import json as _json
         _gen_at = _json.loads(_PREDICTIONS_PATH.read_text(encoding='utf-8')).get('generated_at', '')
         if _gen_at:
             st.caption(f'AI予測更新日時: {_gen_at}')
-    _h_br   = _load_species_base_rates()
-    _h_wx   = _load_weather('串本')
-    _h_tide = _load_tide('串本')
-    _h_fc   = _load_forecast_api()
-    _h_mw   = _load_morning_wind('串本')   # tenki.jp 0〜6時風速（3日分）
-    _h_fw   = _load_forecast_wind('串本')  # tenki.jp 10days 日別風速（4日目〜）
 
-    # ── 日付選択（クリックで詳細表示）──────────────────────────────
-    _ai_dates = [p['date'] for p in _h_ai] if _h_ai else [_today]
-    _default_date = _today if _today in _ai_dates else _ai_dates[0] if _ai_dates else _today
+    if _u_loc == '白浜':
+        st.caption('※ 白浜の潮汐は最寄港「田辺」のデータを表示しています。')
 
-    if 'home_sel_date' not in st.session_state or st.session_state['home_sel_date'] not in _ai_dates:
-        st.session_state['home_sel_date'] = _default_date
+    # 風速リスクマップ
+    _u_mw_map = {}
+    if _u_fw is not None and not _u_fw.empty:
+        for _, _r in _u_fw.iterrows(): _u_mw_map[_r['date']] = _r
+    if _u_mw is not None and not _u_mw.empty:
+        for _, _r in _u_mw.iterrows(): _u_mw_map[_r['date']] = _r
 
-    if _h_ai:
-        # 風速リスクマップ: 10days（全日）を先に入れ、0〜6時データ（精度高）で上書き
-        _mw_map = {}
-        if _h_fw is not None and not _h_fw.empty:
-            for _, _mwr in _h_fw.iterrows():
-                _mw_map[_mwr['date']] = _mwr
-        if _h_mw is not None and not _h_mw.empty:
-            for _, _mwr in _h_mw.iterrows():
-                _mw_map[_mwr['date']] = _mwr  # 上書き（より精度高い）
+    # AIデータマップ
+    _u_ai_map = {p['date']: p for p in _u_ai} if _u_ai else {}
 
-        def _wxemoji(s):
-            if not s: return ''
-            if '雪' in s: return '❄️'
-            if '雷' in s: return '⛈️'
-            if '雨' in s and '晴' in s: return '🌦️'
-            if '雨' in s: return '🌧️'
-            if '曇' in s and '晴' in s: return '🌤️'
-            if '曇' in s: return '☁️'
-            if '晴' in s: return '☀️'
-            return ''
-        def _stars(p):
-            n = min(3, max(0, round(float(p) * 3)))
-            return '★' * n + '☆' * (3 - n)
+    # 統合日付リスト（最大14日）
+    _u_dates = sorted(set(
+        (list(_u_wx['date'].unique()) if _u_wx is not None else []) +
+        list(_u_ai_map.keys()) +
+        (list(_u_hourly['date'].unique()) if _u_hourly is not None else [])
+    ))
 
-        # ── 7日間リスト（各行タップで詳細）────────────────────────
-        st.caption('タップすると条件・磯ランキングを確認できます')
-        for _idx, _p in enumerate(_h_ai):
-            _d  = _p['date']
-            _wd = _WDAYS[_d.weekday()]
-            _gp = _p.get('go_proba', 0)
-            _ec = _p.get('expected_count', 0)
-            _mw_row = _mw_map.get(_d)
-            if _mw_row is not None:
-                _mw_spd  = _mw_row['wind_max_ms']
-                _mw_prob = _mw_row['risk_prob']
-                if _mw_prob >= 0.90:
-                    _vs = '✖ STOP'
-                    _mw_str = f'休船大 {int(_mw_spd)}m/s'
-                elif _mw_prob >= 0.75:
-                    _vs = '⚠ CHECK'
-                    _mw_str = f'要確認 {int(_mw_spd)}m/s'
+    def _u_wxe(s):
+        if not s: return ''
+        if '雪' in s: return '❄️'
+        if '雷' in s: return '⛈️'
+        if '雨' in s and '晴' in s: return '🌦️'
+        if '雨' in s: return '🌧️'
+        if '曇' in s and '晴' in s: return '🌤️'
+        if '曇' in s: return '☁️'
+        if '晴' in s: return '☀️'
+        return ''
+
+    def _u_stars(p):
+        n = min(3, max(0, round(float(p) * 3)))
+        return '★' * n + '☆' * (3 - n)
+
+    if _u_dates:
+        st.caption('タップすると詳細を確認できます')
+        for _uidx, _ud in enumerate(_u_dates):
+            _uwd = _WDAYS[_ud.weekday()]
+            _u_ai_p  = _u_ai_map.get(_ud)
+            _u_mw_row = _u_mw_map.get(_ud)
+
+            # 天気・気温
+            _u_wr = _u_wx[_u_wx['date'] == _ud].iloc[0] if _u_wx is not None and not _u_wx[_u_wx['date'] == _ud].empty else None
+            _u_wxe_s = _u_wxe(str(_u_wr['weather']) if _u_wr is not None and pd.notna(_u_wr.get('weather')) else '')
+            _u_tmax = int(_u_wr['temp_max']) if _u_wr is not None and pd.notna(_u_wr.get('temp_max')) else None
+            _u_tmin = int(_u_wr['temp_min']) if _u_wr is not None and pd.notna(_u_wr.get('temp_min')) else None
+            _u_temp_s = f'{_u_tmax}/{_u_tmin}℃' if _u_tmax is not None else ''
+
+            # 潮汐
+            _u_tn = _u_tide[(_u_tide['date'] == _ud) & _u_tide['tide_name'].notna()] if _u_tide is not None and not _u_tide.empty else pd.DataFrame()
+            _u_tide_s = str(_u_tn.iloc[0]['tide_name']) if not _u_tn.empty else ''
+
+            # 降水
+            _u_hd = _u_hourly[_u_hourly['date'] == _ud] if _u_hourly is not None else pd.DataFrame()
+            _u_prec = round(float(_u_hd['precipitation_mm'].sum()), 1) if not _u_hd.empty and 'precipitation_mm' in _u_hd.columns else None
+
+            # 出船判断
+            if _u_mw_row is not None:
+                _u_mw_spd  = _u_mw_row['wind_max_ms']
+                _u_mw_prob = _u_mw_row['risk_prob']
+                if _u_mw_prob >= 0.90:
+                    _u_vs = '✖ STOP'; _u_mw_str = f'休船大 {int(_u_mw_spd)}m/s'
+                elif _u_mw_prob >= 0.75:
+                    _u_vs = '⚠ CHECK'; _u_mw_str = f'要確認 {int(_u_mw_spd)}m/s'
                 else:
-                    _vs = '✅ GO'
-                    _mw_str = f'出船可 {int(_mw_spd)}m/s'
+                    _u_vs = '✅ GO'; _u_mw_str = f'出船可 {int(_u_mw_spd)}m/s'
+            elif _u_ai_p is not None:
+                _u_vs = '✅ GO'; _u_mw_spd = None; _u_mw_str = ''
             else:
-                _vs = '✅ GO'
-                _mw_str = '–'
+                _u_vs = None; _u_mw_spd = None; _u_mw_str = ''
 
-            # 天気・気温・潮汐を取得
-            _wx_r = _h_wx[_h_wx['date'] == _d].iloc[0] if _h_wx is not None and not _h_wx[_h_wx['date'] == _d].empty else None
-            _wx_e = _wxemoji(str(_wx_r['weather']) if _wx_r is not None and pd.notna(_wx_r.get('weather')) else '')
-            _tmax = int(_wx_r['temp_max']) if _wx_r is not None and pd.notna(_wx_r.get('temp_max')) else None
-            _tmin = int(_wx_r['temp_min']) if _wx_r is not None and pd.notna(_wx_r.get('temp_min')) else None
-            _temp_s = f'{_tmax}/{_tmin}℃' if _tmax is not None else ''
-            _tn_r = _h_tide[(_h_tide['date'] == _d) & _h_tide['tide_name'].notna()].iloc[0] if _h_tide is not None and not _h_tide.empty and not _h_tide[(_h_tide['date'] == _d) & _h_tide['tide_name'].notna()].empty else None
-            _tide_s = str(_tn_r['tide_name']) if _tn_r is not None else ''
-            _star_s = _stars(_gp)
-            _today_mark = '⭐今日  ' if _d == _today else ''
+            # AI釣果
+            _u_gp = _u_ai_p.get('go_proba', 0) if _u_ai_p else None
+            _u_ec = _u_ai_p.get('expected_count', 0) if _u_ai_p else None
+            _u_star_s = _u_stars(_u_gp) if _u_gp is not None else ''
 
-            _drm_cls = 'drm-stop' if '✖' in _vs else ('drm-check' if '⚠' in _vs else 'drm-go')
-            _drm_today_cls = ' drm-today' if _d == _today else ''
-            _today_mark = ' 今日' if _d == _today else ''
-            # 判断層（1行目）: 出船可否 │ 日付 │ 釣果 │ ★
-            _line1 = f"{_vs}  {_d.month}/{_d.day}({_wd}){_today_mark}  │  🎣 {_ec:.1f}匹  {_star_s}"
-            # 文脈層（2行目）: 天気 │ 潮 │ 風  ← 区切り線で視覚分離
-            _parts2 = []
-            if _wx_e and _temp_s: _parts2.append(f'{_wx_e} {_temp_s}')
-            elif _temp_s:          _parts2.append(f'🌡 {_temp_s}')
-            if _tide_s:            _parts2.append(f'🌊 {_tide_s}')
-            if _mw_row is not None: _parts2.append(f'🌬 {int(_mw_spd)}m/s')
-            _line2 = '  ' + '  │  '.join(_parts2) if _parts2 else ''
-            _btn_label = f"{_line1}\n{_line2}" if _line2 else _line1
-            st.markdown(f'<span class="day-row-marker {_drm_cls}{_drm_today_cls}"></span>', unsafe_allow_html=True)
-            if st.button(_btn_label, key=f'detail_{_idx}', use_container_width=True):
+            # カード色クラス
+            _u_today_mark = ' 今日' if _ud == _today else ''
+            _u_drm = 'drm-stop' if _u_vs and '✖' in _u_vs else ('drm-check' if _u_vs and '⚠' in _u_vs else 'drm-go')
+            _u_drm_today = ' drm-today' if _ud == _today else ''
+
+            # ラベル組み立て（判断層 / 文脈層）
+            if _u_vs and _u_gp is not None:
+                _u_l1 = f"{_u_vs}  {_ud.month}/{_ud.day}({_uwd}){_u_today_mark}  │  🎣 {_u_ec:.1f}匹  {_u_star_s}"
+                _u_p2 = []
+                if _u_wxe_s and _u_temp_s: _u_p2.append(f'{_u_wxe_s} {_u_temp_s}')
+                if _u_tide_s: _u_p2.append(f'🌊 {_u_tide_s}')
+                if _u_mw_spd is not None: _u_p2.append(f'🌬 {int(_u_mw_spd)}m/s')
+            elif _u_vs:
+                _u_l1 = f"{_u_vs}  {_ud.month}/{_ud.day}({_uwd}){_u_today_mark}  │  {_u_wxe_s} {_u_temp_s}"
+                _u_p2 = []
+                if _u_tide_s: _u_p2.append(f'🌊 {_u_tide_s}')
+                if _u_mw_spd is not None: _u_p2.append(f'🌬 {int(_u_mw_spd)}m/s')
+                if _u_prec and _u_prec > 0: _u_p2.append(f'☔ {_u_prec}mm')
+            else:
+                _u_l1 = f"{_u_wxe_s}  {_ud.month}/{_ud.day}({_uwd}){_u_today_mark}  │  🌡 {_u_temp_s}"
+                _u_p2 = []
+                if _u_tide_s: _u_p2.append(f'🌊 {_u_tide_s}')
+                if _u_prec and _u_prec > 0: _u_p2.append(f'☔ {_u_prec}mm')
+
+            _u_l2 = '  ' + '  │  '.join(_u_p2) if _u_p2 else ''
+            _u_label = f"{_u_l1}\n{_u_l2}" if _u_l2 else _u_l1
+
+            st.markdown(f'<span class="day-row-marker {_u_drm}{_u_drm_today}"></span>', unsafe_allow_html=True)
+            if st.button(_u_label, key=f'unified_{_uidx}', use_container_width=True):
+                if _u_ai_p is not None:
                     _show_day_detail(
-                        sel_date=_d,
-                        sel_pred=next((p for p in _h_ai if p['date'] == _d), None),
-                        mw_row=_mw_row,
-                        h_wx=_h_wx,
-                        h_fc=_h_fc,
-                        h_tide=_h_tide,
-                        h_br=_h_br,
-                        today=_today,
-                        wdays=_WDAYS,
+                        sel_date=_ud, sel_pred=_u_ai_p, mw_row=_u_mw_row,
+                        h_wx=_u_wx, h_fc=_u_fc,
+                        h_tide=_u_tide, h_br=_u_br,
+                        today=_today, wdays=_WDAYS,
                         load_ranking_fn=_load_spot_ranking,
                         build_reasons_fn=_build_reasons,
                         species_lift_fn=_species_lift_str,
                     )
-
+                else:
+                    _show_tab1_detail(
+                        sel_date=_ud, wx_df=_u_wx, tide_df=_u_tide,
+                        hourly_df=_u_hourly, ai_preds=_u_ai or [],
+                        base_rates=_u_br, df_all_data=df_all,
+                        location=_u_loc, wdays=_WDAYS,
+                        prompt_builder_mod=prompt_builder,
+                    )
     else:
-        st.info('AI予測データがありません。')
+        st.info('データを取得できませんでした。')
 
     # ── 最近釣れ始めている魚 ─────────────────────────────────────
+    st.markdown('---')
     st.markdown('##### 🐟 最近釣れ始めている魚')
 
     _trending = _load_trending_species()
@@ -1341,8 +1375,6 @@ with tab0:
 </div>"""
         _tr_html += '</div>'
         st.markdown(_tr_html, unsafe_allow_html=True)
-
-    st.caption('詳細な釣行計画は「🎣 釣果予測」タブ、過去データ分析は「📊 釣果分析」タブをご利用ください。')
 
 
 # ============================================================
@@ -1596,98 +1628,7 @@ def _show_tab1_detail(sel_date, wx_df, tide_df, hourly_df, ai_preds,
 
 
 # ============================================================
-# Tab 1: 釣果予測
-# ============================================================
-with tab1:
-    _t1_wdays = '月火水木金土日'
-    st.markdown('<p style="font-size:0.82rem;color:#4A7A95;margin-bottom:4px;font-weight:600;">地点</p>', unsafe_allow_html=True)
-    location = st.radio('', ['串本', '白浜'], horizontal=True, label_visibility='collapsed')
-
-    with st.spinner('データ取得中...'):
-        wx_df     = _load_weather(location)
-        tide_df   = _load_tide(location)
-        hourly_df = _load_hourly()
-
-    ai_predictions = _load_ai_predictions(days=7)
-    _t1_base_rates = _load_species_base_rates()
-
-    if wx_df is None and hourly_df is None:
-        st.warning('天気データを取得できませんでした。')
-    else:
-        dates = sorted(set(
-            (list(wx_df['date'].unique()) if wx_df is not None else []) +
-            (list(hourly_df['date'].unique()) if hourly_df is not None else [])
-        ))
-
-        if location == '白浜':
-            st.caption('※ 白浜の潮汐は最寄港「田辺」のデータを表示しています。')
-
-        # ── 天気・潮汐リスト（メイン：行タップで詳細）─────────────────
-        st.caption('「詳細」をタップすると気温・潮位グラフとAI予測を確認できます')
-
-        def _wxe_t1(s):
-            if not s: return ''
-            s = str(s)
-            if '雪' in s: return '❄️'
-            if '雷' in s: return '⛈️'
-            if '雨' in s and '晴' in s: return '🌦️'
-            if '雨' in s: return '🌧️'
-            if '曇' in s and '晴' in s: return '🌤️'
-            if '曇' in s: return '☁️'
-            if '晴' in s: return '☀️'
-            return '🌈'
-
-        _today_t1 = date.today()
-        for _ti, _td in enumerate(dates):
-            _wr_rows = wx_df[wx_df['date'] == _td] if wx_df is not None else pd.DataFrame()
-            _wr = _wr_rows.iloc[0] if not _wr_rows.empty else None
-            _wx_str = str(_wr['weather']) if _wr is not None and pd.notna(_wr.get('weather')) else '–'
-            _tmax_v = _wr['temp_max'] if _wr is not None and pd.notna(_wr.get('temp_max')) else None
-            _tmin_v = _wr['temp_min'] if _wr is not None and pd.notna(_wr.get('temp_min')) else None
-            _hd_day = hourly_df[hourly_df['date'] == _td] if hourly_df is not None else pd.DataFrame()
-            _prec_v = round(float(_hd_day['precipitation_mm'].sum()), 1) if not _hd_day.empty and 'precipitation_mm' in _hd_day.columns else None
-
-            _tn_rows = tide_df[(tide_df['date'] == _td) & tide_df['tide_name'].notna()] if tide_df is not None and not tide_df.empty else pd.DataFrame()
-            _tide_n  = str(_tn_rows.iloc[0]['tide_name']) if not _tn_rows.empty else ''
-
-            _is_today_t1 = (_td == _today_t1)
-            _has_ai = any(p['date'] == _td for p in ai_predictions) if ai_predictions else False
-            _wd_str = _t1_wdays[_td.weekday()]
-            _dstr = f"{_td.month}/{_td.day}（{_wd_str}）" + (" ⭐今日" if _is_today_t1 else "")
-
-            # Tab1カード: 判断層 / 文脈層（KPIカードと同一デザイン）
-            _wx_e_t1 = _wxe_t1(_wx_str)
-            _today_lbl = ' 今日' if _is_today_t1 else ''
-            _ai_lbl = '  AI✓' if _has_ai else ''
-            _tmax_b = f"{int(_tmax_v)}" if _tmax_v is not None else "–"
-            _tmin_b = f"{int(_tmin_v)}" if _tmin_v is not None else "–"
-            # 判断層: 天気 │ 日付 │ 気温
-            _btn_t1_l1 = f"{_wx_e_t1}  {_td.month}/{_td.day}({_t1_wdays[_td.weekday()]}){_today_lbl}  │  🌡 {_tmax_b}/{_tmin_b}℃{_ai_lbl}"
-            # 文脈層: 潮 │ 降水
-            _t1_parts2 = []
-            if _tide_n:   _t1_parts2.append(f'🌊 {_tide_n}')
-            if _prec_v is not None and _prec_v > 0: _t1_parts2.append(f'☔ {_prec_v}mm')
-            _btn_t1_l2 = '  ' + '  │  '.join(_t1_parts2) if _t1_parts2 else ''
-            _btn_t1 = f"{_btn_t1_l1}\n{_btn_t1_l2}" if _btn_t1_l2 else _btn_t1_l1
-            _drm_t1 = 'drm-today' if _is_today_t1 else ''
-            st.markdown(f'<span class="day-row-marker {_drm_t1}"></span>', unsafe_allow_html=True)
-            if st.button(_btn_t1, key=f't1_detail_{_ti}', use_container_width=True):
-                    _show_tab1_detail(
-                        sel_date=_td,
-                        wx_df=wx_df,
-                        tide_df=tide_df,
-                        hourly_df=hourly_df,
-                        ai_preds=ai_predictions or [],
-                        base_rates=_t1_base_rates,
-                        df_all_data=df_all,
-                        location=location,
-                        wdays=_t1_wdays,
-                        prompt_builder_mod=prompt_builder,
-                    )
-
-
-# ============================================================
-# Tab 2: 釣果分析
+# Tab 1: 釣果分析
 # ============================================================
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -1737,7 +1678,7 @@ def _load_water_temp_pdp() -> pd.DataFrame | None:
     return ml_predict.compute_water_temp_pdp()
 
 
-with tab2:
+with tab1:
     st.subheader('釣果分析')
     _df2_base = load_data_tab2()
     _df2_base = _df2_base[
@@ -2180,9 +2121,9 @@ with tab2:
 
 
 # ============================================================
-# Tab 3: 釣り場ランキング
+# Tab 2: 釣り場ランキング
 # ============================================================
-with tab3:
+with tab2:
     st.subheader('釣り場ランキング（上位20磯）')
     df3 = df[df['spot'].notna() & df['count'].notna()]
 
@@ -2217,7 +2158,7 @@ with tab3:
 
 
 # ── 分析タブ：月別・季節別（expander）──
-with tab2:
+with tab1:
     with st.expander('📅 月別・季節別の釣果傾向', expanded=False):
         df4 = df[df['species'].notna() & df['count'].notna()]
         if df4.empty:
