@@ -4,7 +4,6 @@
 <body style="margin:0;padding:0;background:transparent;overflow:hidden;">
 <script>
 (function () {
-  /* Streamlit Component 最小プロトコル */
   function post(type, data) {
     window.parent.postMessage(
       Object.assign({ isStreamlitMessage: true, type: type }, data), "*"
@@ -13,50 +12,46 @@
   post("streamlit:componentReady", { apiVersion: 1 });
   post("streamlit:setFrameHeight", { height: 0 });
 
-  var SEL = '[data-testid="stDialogScrollArea"]';
-  var LOCK_MS = 4000;   /* この時間内はスクロールを 0 に固定 */
-  var lockEnd = 0;
+  /* Streamlit のメインスクロールコンテナ候補（バージョンにより異なる） */
+  var MAIN_SELS = [
+    '[data-testid="stMain"]',
+    '[data-testid="stAppViewContainer"]',
+    'section.main',
+    '.main'
+  ];
+  /* ダイアログ内スクロール */
+  var DIALOG_SEL = '[data-testid="stDialogScrollArea"]';
 
-  function resetEl(el) {
-    if (el.scrollTop === 0) return;
-    el.scrollTop = 0;
+  function scrollTo0(w) {
+    try {
+      /* ページ本体 */
+      MAIN_SELS.forEach(function (sel) {
+        w.document.querySelectorAll(sel).forEach(function (el) {
+          el.scrollTop = 0;
+        });
+      });
+      w.document.documentElement.scrollTop = 0;
+      w.document.body.scrollTop = 0;
+      w.scrollTo(0, 0);
+      /* ダイアログ内 */
+      w.document.querySelectorAll(DIALOG_SEL).forEach(function (el) {
+        el.scrollTop = 0;
+      });
+    } catch (e) {}
   }
 
-  function findAndLock() {
-    var found = false;
-    [window.parent, window.top].forEach(function (w) {
-      try {
-        w.document.querySelectorAll(SEL).forEach(function (el) {
-          found = true;
-          resetEl(el);
-          /* まだリスナーを付けていなければ付ける */
-          if (!el.__srLocked) {
-            el.__srLocked = true;
-            el.addEventListener('scroll', function () {
-              if (Date.now() < lockEnd) {
-                el.scrollTop = 0;
-              }
-            }, { passive: true });
-          }
-        });
-      } catch (e) {}
-    });
-    return found;
+  function reset() {
+    scrollTo0(window.parent);
+    try { scrollTo0(window.top); } catch (e) {}
   }
 
   window.addEventListener("message", function (event) {
     if (event.data.type !== "streamlit:render") return;
 
-    lockEnd = Date.now() + LOCK_MS;
-
-    /* ダイアログが DOM に現れるまで 50ms ごとにポーリング（最大 3 秒）*/
-    var pollStart = Date.now();
-    var pollId = setInterval(function () {
-      var found = findAndLock();
-      if (found || Date.now() - pollStart > 3000) {
-        clearInterval(pollId);
-      }
-    }, 50);
+    /* レンダリング完了前後の複数タイミングで実行 */
+    [0, 80, 200, 400, 800, 1500].forEach(function (t) {
+      setTimeout(reset, t);
+    });
 
     post("streamlit:setComponentValue", { value: 1 });
   });
