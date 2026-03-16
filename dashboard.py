@@ -1244,15 +1244,8 @@ def _build_reasons(pred, wind_ms, wave_val, wt, tide_name, rising):
 def _show_tab1_detail(sel_date, wx_df, tide_df, hourly_df, ai_preds,
                       base_rates, df_all_data, location, wdays, prompt_builder_mod):
     """天気・潮汐・AI予測をダイアログで表示する。"""
-    # ダイアログのスクロールコンテナがコンテンツ追加時に自動スクロールするのを防ぐ
-    st.markdown(
-        '<style>'
-        '[data-testid="stDialogScrollArea"],'
-        '[data-testid="stDialogScrollArea"] *'
-        '{ overflow-anchor: none !important; }'
-        '</style>',
-        unsafe_allow_html=True,
-    )
+    from components.scroll_reset import scroll_reset as _scroll_reset
+    _scroll_reset(key=f'sr_{sel_date}')
     d = sel_date
     wd = wdays[d.weekday()]
     is_today = (d == date.today())
