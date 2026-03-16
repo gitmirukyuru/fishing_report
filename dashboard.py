@@ -27,13 +27,28 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-html, body, [class*="css"], .stApp {
+/* ライトモード固定（ダークモード無効化） */
+:root { color-scheme: light; }
+
+html, body, .stApp {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
 }
 
-/* ── 背景 ── */
-.stApp { background-color: #EDF2F7; }
+/* ── 背景・テキスト色（ライト固定） ── */
+.stApp {
+    background-color: #EDF2F7 !important;
+    color: #1C3448 !important;
+}
 .main .block-container { padding-top: 1.5rem; max-width: 1400px; }
+
+/* メインエリアの全テキストを暗色に統一 */
+.main p, .main li, .main span:not([data-baseweb]),
+.main label, .main div[data-testid="stText"],
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li,
+[data-testid="stMarkdownContainer"] span {
+    color: #1C3448 !important;
+}
 
 /* ── サイドバー ── */
 [data-testid="stSidebar"] {
@@ -109,14 +124,20 @@ html, body, [class*="css"], .stApp {
     overflow: hidden;
     box-shadow: 0 2px 12px rgba(0,0,0,0.07);
 }
+[data-testid="stDataFrame"] * { color: #1C3448 !important; }
 
 /* ── Metricカード ── */
 [data-testid="metric-container"] {
-    background: #FFFFFF;
+    background: #FFFFFF !important;
     border-radius: 12px;
     padding: 16px 20px;
     box-shadow: 0 2px 12px rgba(0,0,0,0.07);
     border-left: 4px solid #1B8FA8;
+}
+[data-testid="metric-container"] label,
+[data-testid="metric-container"] [data-testid="stMetricLabel"],
+[data-testid="metric-container"] [data-testid="stMetricValue"] {
+    color: #1C3448 !important;
 }
 
 /* ── ボタン ── */
@@ -141,7 +162,7 @@ html, body, [class*="css"], .stApp {
 
 /* ── Expander ── */
 [data-testid="stExpander"] {
-    background: #FFFFFF;
+    background: #FFFFFF !important;
     border-radius: 12px !important;
     border: 1px solid #D9E8F2 !important;
     box-shadow: 0 1px 6px rgba(0,0,0,0.05) !important;
@@ -150,11 +171,16 @@ html, body, [class*="css"], .stApp {
 }
 [data-testid="stExpander"] summary {
     font-weight: 500;
-    color: #0B3D5C;
+    color: #0B3D5C !important;
     padding: 12px 16px !important;
 }
 [data-testid="stExpander"] summary:hover {
     background: #F0F7FB !important;
+}
+[data-testid="stExpander"] p,
+[data-testid="stExpander"] li,
+[data-testid="stExpander"] span:not([data-baseweb]) {
+    color: #1C3448 !important;
 }
 
 /* ── Statusボックス ── */
@@ -164,6 +190,7 @@ html, body, [class*="css"], .stApp {
 
 /* ── Alertボックス ── */
 [data-testid="stAlert"] { border-radius: 10px !important; }
+[data-testid="stAlert"] p { color: inherit !important; }
 
 /* ── テキスト見出し ── */
 h1 { color: #0B3D5C !important; }
