@@ -1,145 +1,145 @@
 {
-  "generated_at": "2026-03-17T17:06:12",
+  "generated_at": "2026-03-23T00:52:10",
   "predictions": [
-    {
-      "date": "2026-03-17",
-      "tide_name": "大潮",
-      "rising_ratio": 0.4095238095238095,
-      "precip_1d": 0.0,
-      "precip_2d": 0.0,
-      "precip_3d": 0.0,
-      "wind_ms_max": 13.9,
-      "wind_dir_deg": 30.0,
-      "expected_count": 4.7,
-      "go_proba": 0.552,
-      "species_proba": {
-        "グレ": 0.99,
-        "石鯛": 0.001,
-        "イガミ": 0.0
-      },
-      "weather": "晴",
-      "temp_max": 18,
-      "temp_min": 7
-    },
-    {
-      "date": "2026-03-18",
-      "tide_name": "大潮",
-      "rising_ratio": 0.3357142857142857,
-      "precip_1d": 0.0,
-      "precip_2d": 0.0,
-      "precip_3d": 0.0,
-      "wind_ms_max": 17.2,
-      "wind_dir_deg": 59.0,
-      "expected_count": 4.8,
-      "go_proba": 0.301,
-      "species_proba": {
-        "グレ": 0.996,
-        "石鯛": 0.0,
-        "イガミ": 0.0
-      },
-      "weather": "晴のち雨",
-      "temp_max": 17,
-      "temp_min": 9
-    },
-    {
-      "date": "2026-03-19",
-      "tide_name": "大潮",
-      "rising_ratio": 0.2571428571428571,
-      "precip_1d": 25.8,
-      "precip_2d": 0.0,
-      "precip_3d": 0.0,
-      "wind_ms_max": 26.8,
-      "wind_dir_deg": 296.0,
-      "expected_count": 6.6,
-      "go_proba": 0.198,
-      "species_proba": {
-        "グレ": 0.997,
-        "石鯛": 0.0,
-        "イガミ": 0.0
-      },
-      "weather": "雨のち晴",
-      "temp_max": 20,
-      "temp_min": 14
-    },
-    {
-      "date": "2026-03-20",
-      "tide_name": "大潮",
-      "rising_ratio": 0.17857142857142858,
-      "precip_1d": 9.9,
-      "precip_2d": 25.8,
-      "precip_3d": 0.0,
-      "wind_ms_max": 19.0,
-      "wind_dir_deg": 318.0,
-      "expected_count": 6.0,
-      "go_proba": 0.312,
-      "species_proba": {
-        "グレ": 0.98,
-        "石鯛": 0.0,
-        "イガミ": 0.0
-      },
-      "weather": "晴",
-      "temp_max": 19,
-      "temp_min": 8
-    },
-    {
-      "date": "2026-03-21",
-      "tide_name": "中潮",
-      "rising_ratio": 0.11666666666666667,
-      "precip_1d": 0.0,
-      "precip_2d": 9.9,
-      "precip_3d": 25.8,
-      "wind_ms_max": 8.8,
-      "wind_dir_deg": 47.0,
-      "expected_count": 6.5,
-      "go_proba": 0.755,
-      "species_proba": {
-        "グレ": 0.911,
-        "石鯛": 0.0,
-        "イガミ": 0.0
-      },
-      "weather": "晴時々曇",
-      "temp_max": 16,
-      "temp_min": 6
-    },
-    {
-      "date": "2026-03-22",
-      "tide_name": "中潮",
-      "rising_ratio": 0.0880952380952381,
-      "precip_1d": 0.0,
-      "precip_2d": 0.0,
-      "precip_3d": 9.9,
-      "wind_ms_max": 10.7,
-      "wind_dir_deg": 78.0,
-      "expected_count": 6.1,
-      "go_proba": 0.711,
-      "species_proba": {
-        "グレ": 0.907,
-        "石鯛": 0.0,
-        "イガミ": 0.0
-      },
-      "weather": "晴時々曇",
-      "temp_max": 18,
-      "temp_min": 8
-    },
     {
       "date": "2026-03-23",
       "tide_name": "中潮",
       "rising_ratio": 0.1380952380952381,
-      "precip_1d": 0.0,
+      "precip_1d": 3.6,
       "precip_2d": 0.0,
       "precip_3d": 0.0,
-      "wind_ms_max": 10.8,
-      "wind_dir_deg": 296.0,
-      "expected_count": 6.8,
-      "go_proba": 0.883,
+      "wind_ms_max": 18.0,
+      "wind_dir_deg": 38.0,
+      "expected_count": 5.6,
+      "go_proba": 0.162,
       "species_proba": {
-        "グレ": 0.99,
+        "グレ": 0.992,
         "石鯛": 0.0,
         "イガミ": 0.0
       },
-      "weather": "晴時々雨",
-      "temp_max": 18,
+      "weather": "雨のち晴",
+      "temp_max": 17,
+      "temp_min": 10
+    },
+    {
+      "date": "2026-03-24",
+      "tide_name": "中潮",
+      "rising_ratio": 0.2,
+      "precip_1d": 9.1,
+      "precip_2d": 3.6,
+      "precip_3d": 0.0,
+      "wind_ms_max": 13.8,
+      "wind_dir_deg": 40.0,
+      "expected_count": 6.4,
+      "go_proba": 0.242,
+      "species_proba": {
+        "グレ": 0.987,
+        "石鯛": 0.0,
+        "イガミ": 0.0
+      },
+      "weather": "晴のち曇",
+      "temp_max": 17,
+      "temp_min": 8
+    },
+    {
+      "date": "2026-03-25",
+      "tide_name": "小潮",
+      "rising_ratio": 0.26666666666666666,
+      "precip_1d": 0.0,
+      "precip_2d": 9.1,
+      "precip_3d": 3.6,
+      "wind_ms_max": 18.0,
+      "wind_dir_deg": 41.0,
+      "expected_count": 5.2,
+      "go_proba": 0.176,
+      "species_proba": {
+        "グレ": 0.992,
+        "石鯛": 0.0,
+        "イガミ": 0.0
+      },
+      "weather": "曇のち雨",
+      "temp_max": 16,
       "temp_min": 11
+    },
+    {
+      "date": "2026-03-26",
+      "tide_name": "小潮",
+      "rising_ratio": 0.36428571428571427,
+      "precip_1d": 9.05,
+      "precip_2d": 0.0,
+      "precip_3d": 9.1,
+      "wind_ms_max": 19.8,
+      "wind_dir_deg": 63.0,
+      "expected_count": 6.5,
+      "go_proba": 0.113,
+      "species_proba": {
+        "グレ": 0.995,
+        "石鯛": 0.0,
+        "イガミ": 0.0
+      },
+      "weather": "雨のち曇",
+      "temp_max": 17,
+      "temp_min": 11
+    },
+    {
+      "date": "2026-03-27",
+      "tide_name": "小潮",
+      "rising_ratio": 0.3952380952380952,
+      "precip_1d": 0.0,
+      "precip_2d": 9.05,
+      "precip_3d": 0.0,
+      "wind_ms_max": 23.9,
+      "wind_dir_deg": 73.0,
+      "expected_count": 4.8,
+      "go_proba": 0.164,
+      "species_proba": {
+        "グレ": 0.989,
+        "石鯛": 0.0,
+        "イガミ": 0.0
+      },
+      "weather": "晴時々曇",
+      "temp_max": 19,
+      "temp_min": 11
+    },
+    {
+      "date": "2026-03-28",
+      "tide_name": "長潮",
+      "rising_ratio": 0.6214285714285714,
+      "precip_1d": 0.6,
+      "precip_2d": 0.0,
+      "precip_3d": 9.05,
+      "wind_ms_max": 33.6,
+      "wind_dir_deg": 71.0,
+      "expected_count": 5.9,
+      "go_proba": 0.294,
+      "species_proba": {
+        "グレ": 0.989,
+        "石鯛": 0.0,
+        "イガミ": 0.0
+      },
+      "weather": "曇時々雨",
+      "temp_max": 19,
+      "temp_min": 12
+    },
+    {
+      "date": "2026-03-29",
+      "tide_name": "若潮",
+      "rising_ratio": 0.55,
+      "precip_1d": 3.9,
+      "precip_2d": 0.6,
+      "precip_3d": 0.0,
+      "wind_ms_max": 28.2,
+      "wind_dir_deg": 316.0,
+      "expected_count": 5.0,
+      "go_proba": 0.35,
+      "species_proba": {
+        "グレ": 0.938,
+        "石鯛": 0.0,
+        "イガミ": 0.0
+      },
+      "weather": "曇時々晴",
+      "temp_max": 20,
+      "temp_min": 12
     }
   ]
 }
